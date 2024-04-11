@@ -142,6 +142,7 @@ name = "erlang_llama_cpp_nif"
 version = "0.0.1"
 dependencies = [
  "llama_cpp",
+ "regex",
  "rustler",
 ]
 

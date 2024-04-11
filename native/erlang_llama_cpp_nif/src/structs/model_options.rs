@@ -1,6 +1,6 @@
 use llama_cpp::{LlamaParams, SplitMode};
-use rustler::{NifStruct, Term};
-use rustler::types::atom;
+use rustler::{NifStruct};
+//use rustler::types::atom;
 
 #[derive(NifStruct)]
 #[module = "ExLLama.ModelOptions"]
@@ -25,7 +25,7 @@ impl From<ModelOptions> for LlamaParams {
 
         Self {
             n_gpu_layers: value.n_gpu_layers,
-            split_mode: SplitMode::None,
+            split_mode: split_mode,
             main_gpu: value.main_gpu,
             vocab_only: value.vocab_only,
             use_mmap: value.use_mmap,

@@ -3,7 +3,7 @@
 // The ExLLama struct also implements the Deref trait to allow it to be treated as a LLama object.
 
 use std::ops::Deref;
-use llama_cpp::LlamaModel;
+use llama_cpp::{LlamaModel, Token};
 use rustler::{NifStruct, ResourceArc};
 use crate::refs::model_ref::ExLLamaModelRef;
 
@@ -13,12 +13,14 @@ use crate::refs::model_ref::ExLLamaModelRef;
 // This struct is used to create a resource that can be passed between Elixir and Rust.
 pub struct ExLLamaModel {
     pub resource: ResourceArc<ExLLamaModelRef>,
+    pub eos: i32
 }
 
 // This implementation of ExLLama creates a new instance of the ExLLama struct.
 impl ExLLamaModel {
     pub fn new(llama: LlamaModel) -> Self {
         Self {
+            eos: llama.eos().0,
             resource: ResourceArc::new(ExLLamaModelRef::new(llama)),
         }
     }
