@@ -4,6 +4,7 @@ use regex::Regex;
 use rustler::{Env, ResourceArc};
 use rustler::types::Pid;
 use crate::refs::session_ref::ExLLamaSessionRef;
+use crate::structs::completion::ExLLamaCompletion;
 use crate::structs::model::ExLLamaModel;
 use crate::structs::session::ExLLamaSession;
 use crate::structs::session_options::ExLLamaSessionOptions;
@@ -62,24 +63,34 @@ pub fn __session_nif_start_completing_with__(env: Env, pid: Pid, session:  Resou
 
 
 #[rustler::nif(schedule = "DirtyCpu")]
-pub fn __session_nif_completion__(session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize, stop: String) -> Result<String,String> {
+pub fn __session_nif_completion__(session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize, stop: Option<String>) -> Result<ExLLamaCompletion,String> {
     let lock = session.0.lock().expect("Locking the session failed");
     let c = lock.deep_copy()  ;
     match c {
         Ok(ctx) => {
             let mut ctx = ctx;
+            let prompt_size = ctx.context_size();
             let completions = ctx.start_completing_with(StandardSampler::default(), max_predictions).into_strings();
             let mut completions_str = String::new();
-            let pattern = Regex::new(&stop).unwrap(); // Compile the regex, handle errors as needed
-            // todo real method that returns a reference to completion handler
-            for completion in completions {
-                completions_str.push_str(&completion);
-                if let Some(mat) = pattern.find(&completions_str) {
-                    completions_str.truncate(mat.end());
-                    break;
+
+            match stop {
+                Some(x) => {
+                    let pattern = Regex::new(&x).unwrap(); // Compile the regex, handle errors as needed
+                    for completion in completions {
+                        completions_str.push_str(&completion);
+                        if let Some(mat) = pattern.find(&completions_str) {
+                            completions_str.truncate(mat.end());
+                            break;
+                        }
+                    }
+                },
+                None => {
+                    for completion in completions {
+                        completions_str.push_str(&completion);
+                    }
                 }
             }
-            Ok(completions_str)
+            Ok(ExLLamaCompletion::new(completions_str, ctx.context_size() - prompt_size))
         },
         Err(e) => Err(e.to_string())
     }
@@ -89,7 +100,7 @@ pub fn __session_nif_completion__(session:  ResourceArc<ExLLamaSessionRef>, max_
 pub fn __session_nif_model__(session:  ResourceArc<ExLLamaSessionRef>) -> Result<ExLLamaModel,String> {
     let ctx = session.0.lock().expect("Locking the session failed");
     let model = ctx.model();
-    let wrapper = ExLLamaModel::new(model);
+    let wrapper = ExLLamaModel::new("...".to_string(), model);
     Ok(wrapper)
 }
 
@@ -150,7 +161,7 @@ pub fn __session_deep_copy__(session:  ResourceArc<ExLLamaSessionRef>) -> Result
     let result = ctx.deep_copy();
     match result {
         Ok(session) =>
-            Ok(ExLLamaSession::new(session)),
+            Ok(ExLLamaSession::new("".to_string(), session.params().seed, session)),
         Err(e) => return Err(e.to_string()),
     }
 }

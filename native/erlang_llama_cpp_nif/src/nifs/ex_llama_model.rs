@@ -9,11 +9,12 @@ use crate::structs::session_options::ExLLamaSessionOptions;
 #[rustler::nif(schedule = "DirtyCpu")]
 // This function creates a new instance of the ExLLama struct.
 pub fn __model_nif_load_from_file__(path: String, model_options: ModelOptions) -> Result<ExLLamaModel, String> {
+    let p = path.clone();
     let params = LlamaParams::from(model_options);
     let model = LlamaModel::load_from_file(path, params);
     match model {
         Ok(model) =>
-            Ok(ExLLamaModel::new(model)),
+            Ok(ExLLamaModel::new(p, model)),
         Err(e) =>
             Err(e.to_string()),
     }
@@ -51,20 +52,21 @@ pub fn __model_nif_decode_tokens__(model: ExLLamaModel, tokens: Vec<i32>) -> Res
 
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn __model_nif_create_session__(model: ExLLamaModel, options: ExLLamaSessionOptions) -> Result<ExLLamaSession, String> {
+    let seed = options.seed.clone();
     let opts = SessionParams::from(options);
     let ctx = model.create_session(opts);
     match ctx {
         Ok(session) =>
-            Ok(ExLLamaSession::new(session)),
+            Ok(ExLLamaSession::new(model.name, seed, session)),
         Err(e) => return Err(e.to_string()),
     }
 }
 
 
 #[rustler::nif(schedule = "DirtyCpu")]
-pub fn __model_nif_embeddings__(model: ExLLamaModel, inputs: Vec<u8>, options: ExLLamaEmbeddingOptions) -> Result<Vec<Vec<f32>>, String> {
+pub fn __model_nif_embeddings__(model: ExLLamaModel, inputs: String, options: ExLLamaEmbeddingOptions) -> Result<Vec<Vec<f32>>, String> {
     let options = EmbeddingsParams::from(options);
-    let vec_of_vec = vec![inputs];
+    let vec_of_vec = vec![inputs.as_bytes()];
     let response = model.embeddings(&vec_of_vec, options);
     match response {
         Ok(value) =>

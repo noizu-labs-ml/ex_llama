@@ -9,19 +9,17 @@ use crate::refs::session_ref::ExLLamaSessionRef;
 
 
 #[derive(NifStruct)]
-#[module = "ExLLama.Session"]
-pub struct ExLLamaSession {
-    pub model_name: String,
-    pub seed: u32,
-    pub resource: ResourceArc<ExLLamaSessionRef>,
+#[module = "ExLLama.Completion"]
+pub struct ExLLamaCompletion {
+    pub content: String,
+    pub token_length: usize,
 }
 
-impl ExLLamaSession {
-    pub fn new(model_name: String, seed: u32, session: LlamaSession) -> Self {
+impl ExLLamaCompletion {
+    pub fn new(content: String, token_length: usize) -> Self {
         Self {
-            model_name: model_name,
-            seed: seed,
-            resource: ResourceArc::new(ExLLamaSessionRef::new(session)),
+            content: content,
+            token_length: token_length
         }
     }
     //

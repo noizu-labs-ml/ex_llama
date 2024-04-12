@@ -1,5 +1,7 @@
 defmodule ExLLama.Session do
   defstruct [
+    seed: nil,
+    model_name: nil,
     resource: nil
   ]
 
@@ -26,6 +28,10 @@ defmodule ExLLama.Session do
   def truncate_context(%__MODULE__{resource: _} = session, n_tokens), do: ExLLama.Nif.__session_nif_truncate_context__(session.resource, n_tokens)
   def set_context_to_tokens(%__MODULE__{resource: _} = session, tokens), do: ExLLama.Nif.__session_nif_set_context_to_tokens__(session.resource, tokens)
   def set_context(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_set_context__(session.resource, context)
-  def deep_copy(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_deep_copy__(session.resource)
+  def deep_copy(%__MODULE__{resource: _} = session) do
+    with {:ok, copy} <- ExLLama.Nif.__session_deep_copy__(session.resource) do
+      {:ok, put_in(copy, [Access.key(:model_name)], session.model_name)}
+    end
+  end
 
 end

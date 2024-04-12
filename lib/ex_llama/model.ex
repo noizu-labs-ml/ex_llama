@@ -1,12 +1,28 @@
 defmodule ExLLama.Model do
   defstruct [
-    resource: nil
+    resource: nil,
+    eos: nil,
+    bos: nil,
+    name: nil
   ]
+
+  def __eos__(model) do
+    {:ok, List.to_string(model.eos)}
+  end
+
+  def __bos__(model) do
+    {:ok, List.to_string(model.bos)}
+  end
+
+
+  def __model_name__(model) do
+    {:ok, model.name}
+  end
 
   def load_from_file(path), do: ExLLama.Nif.__model_nif_load_from_file__(path, ExLLama.ModelOptions.new())
   def load_from_file(path, %ExLLama.ModelOptions{} = opts), do: ExLLama.Nif.__model_nif_load_from_file__(path, opts)
 
-  def detoknize(model, token), do: ExLLama.Nif.__model_nif_detokenize__(model, token)
+  def detokenize(model, token), do: ExLLama.Nif.__model_nif_detokenize__(model, token)
 
   def token_to_byte_piece(model, token), do: ExLLama.Nif.__model_nif_token_to_byte_piece__(model, token)
 

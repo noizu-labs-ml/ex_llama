@@ -13,14 +13,18 @@ use crate::refs::model_ref::ExLLamaModelRef;
 // This struct is used to create a resource that can be passed between Elixir and Rust.
 pub struct ExLLamaModel {
     pub resource: ResourceArc<ExLLamaModelRef>,
-    pub eos: i32
+    pub name: String,
+    pub eos: Vec<u8>,
+    pub bos: Vec<u8>
 }
 
 // This implementation of ExLLama creates a new instance of the ExLLama struct.
 impl ExLLamaModel {
-    pub fn new(llama: LlamaModel) -> Self {
+    pub fn new(name: String, llama: LlamaModel) -> Self {
         Self {
-            eos: llama.eos().0,
+            name: name,
+            eos: llama.detokenize(llama.eos()).to_vec(),
+            bos: llama.detokenize(llama.bos()).to_vec(),
             resource: ResourceArc::new(ExLLamaModelRef::new(llama)),
         }
     }

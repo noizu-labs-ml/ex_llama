@@ -48,13 +48,13 @@ defmodule ExLLamaTest do
     {:ok, as_str} = ExLLama.Model.decode_tokens(llama, context)
     # There is a bug in advance_context in llama_cpp that injects a space
     assert as_str == " <|user|>\n Say Hello. And only hello. Example \"Hello\".</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Repeat what you just said.</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Say Goodbye.</s>\n<|assistant|>\n"
-    {:ok, response} = ExLLama.completion(session, 512, "</s>\n*")
+    {:ok, %{content: response}} = ExLLama.completion(session, 512, "</s>\n*")
     response = String.trim_leading(response)
      ExLLama.advance_context(session, response <> "\n<|user|>\n Say Apple.</s>\n<|assistant|>\n")
-    {:ok, response} = ExLLama.completion(session, 512, "</s>\n*")
+    {:ok, %{content: response}} = ExLLama.completion(session, 512, "</s>\n*")
     response = String.trim_leading(response)
     ExLLama.advance_context(session, response <> "\n<|user|>\n What did you just say?.</s>\n<|assistant|>\n")
-    {:ok, response} = ExLLama.completion(session, 512, "</s>\n*")
+    {:ok, %{content: response}} = ExLLama.completion(session, 512, "</s>\n*")
     response = String.trim_leading(response)
    assert response =~ "Apple"
     {:ok, context} = ExLLama.Session.context(session)
@@ -76,13 +76,18 @@ defmodule ExLLamaTest do
       %{role: :user, content: "What did you just say?."},
     ]
 
-    {:ok, response} = ExLLama.chat_completion(llama, thread, %{seed: 2})
-    assert response == %{
+    # After stripping </s> completion_tokens are actually 3, although it's useful to know how many tokens were generated.
+    {:ok, response} = ExLLama.chat_completion(llama, thread, [seed: 2, choices: 2])
+    assert response == %ExLLama.ChatCompletion{
              choices: [
-               %{reason: :end, role: "assistant", content: "Apple"},
-               %{reason: :end, role: "assistant", content: "Apple"},
-               %{reason: :end, role: "assistant", content: "Apple"}
-             ]
+               %ExLLama.ChatCompletion.Choice{finish_reason: :stop, index: 0, message: "Apple"},
+               %ExLLama.ChatCompletion.Choice{finish_reason: :stop, index: 1, message: "Apple"}
+             ],
+             id: nil,
+             model: "./test/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+             seed: 2,
+             usage: %ExLLama.ChatCompletion.Usage{prompt_tokens: 143, total_tokens: 147, completion_tokens: 4},
+             vsn: 1.0
            }
   end
 
