@@ -2,7 +2,7 @@
 // The ExLLama struct includes a ResourceArc to the ExLLamaRef struct, which is used to ensure safe concurrent access.
 // The ExLLama struct also implements the Deref trait to allow it to be treated as a LLama object.
 
-use std::ops::Deref;
+
 use llama_cpp::{LlamaSession};
 use rustler::{NifStruct, ResourceArc};
 use crate::refs::session_ref::ExLLamaSessionRef;
@@ -20,9 +20,9 @@ impl ExLLamaSession {
             resource: ResourceArc::new(ExLLamaSessionRef::new(session)),
         }
     }
-
-    // Provide a method to access the mutex protected session
-    pub fn lock_session(&self) -> std::sync::MutexGuard<'_, LlamaSession> {
-        self.resource.0.lock().expect("Locking the session failed")
-    }
+    //
+    // // Provide a method to access the mutex protected session
+    // pub fn lock_session(&self) -> std::sync::MutexGuard<'_, LlamaSession> {
+    //     self.resource.0.lock().expect("Locking the session failed")
+    // }
 }

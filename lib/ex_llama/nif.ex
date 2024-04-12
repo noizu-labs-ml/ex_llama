@@ -32,17 +32,18 @@ defmodule ExLLama.Nif do
   def __context_nif_complete__(_,_), do: :erlang.nif_error(:nif_not_loaded)
 
 
-  def __session_nif_advance_context_with_tokens__(session, context), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_advance_context__(session, context), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_completion__(session, max_predictions), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_model__(session), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_params__(session), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_context_size__(session), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_context__(session), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_truncate_context__(session, n_tokens), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_set_context_to_tokens__(session, tokens), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_nif_set_context__(session, context), do: :erlang.nif_error(:nif_not_loaded)
-  def __session_deep_copy__(session, context), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_default_session_options__(), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_advance_context_with_tokens__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_advance_context__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_completion__(_, _, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_model__(_), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_params__(_), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_context_size__(_), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_context__(_), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_truncate_context__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_set_context_to_tokens__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_set_context__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_deep_copy__(_), do: :erlang.nif_error(:nif_not_loaded)
 
 
 

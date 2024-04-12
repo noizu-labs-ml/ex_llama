@@ -19,7 +19,7 @@ impl ExLLamaModelRef {
 impl Drop for ExLLamaModelRef {
     fn drop(&mut self) {
         // Log or print a message indicating the resource is being dropped.
-        println!("Dropping ExLLamaModelRef");
+        // println!("Dropping ExLLamaModelRef");
     }
 }
 unsafe impl Send for ExLLamaModelRef {}

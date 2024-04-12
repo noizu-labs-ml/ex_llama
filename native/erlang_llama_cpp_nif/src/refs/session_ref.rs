@@ -16,7 +16,7 @@ impl ExLLamaSessionRef {
 
 impl Drop for ExLLamaSessionRef {
     fn drop(&mut self) {
-        println!("Dropping ExLLamaSessionRef");
+        // println!("Dropping ExLLamaSessionRef");
     }
 }
 

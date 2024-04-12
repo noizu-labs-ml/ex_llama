@@ -3,7 +3,7 @@
 // The ExLLama struct also implements the Deref trait to allow it to be treated as a LLama object.
 
 use std::ops::Deref;
-use llama_cpp::{LlamaModel, Token};
+use llama_cpp::{LlamaModel};
 use rustler::{NifStruct, ResourceArc};
 use crate::refs::model_ref::ExLLamaModelRef;
 

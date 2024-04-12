@@ -35,6 +35,7 @@ rustler::init!(
         nifs::ex_llama_model::__model_nif_embed_len__,
         nifs::ex_llama_model::__model_nif_train_len__,
 
+        nifs::ex_llama_session::__session_nif_default_session_options__,
         nifs::ex_llama_session::__session_nif_advance_context_with_tokens__,
         nifs::ex_llama_session::__session_nif_advance_context__,
         nifs::ex_llama_session::__session_nif_completion__,
@@ -46,12 +47,12 @@ rustler::init!(
         nifs::ex_llama_session::__session_nif_set_context_to_tokens__,
         nifs::ex_llama_session::__session_nif_set_context__,
         nifs::ex_llama_session::__session_deep_copy__,
-
-        nifs::ex_llama::__context_nif_load_model__,
-        nifs::ex_llama::__context_nif_default_session_options__,
-        nifs::ex_llama::__context_nif_create_session__,
-        nifs::ex_llama::__context_nif_advance_context__,
-        nifs::ex_llama::__context_nif_complete__,
+        //
+        // nifs::ex_llama::__context_nif_load_model__,
+        // nifs::ex_llama::__context_nif_default_session_options__,
+        // nifs::ex_llama::__context_nif_create_session__,
+        // nifs::ex_llama::__context_nif_advance_context__,
+        // nifs::ex_llama::__context_nif_complete__,
 
     ],
     load = on_load
