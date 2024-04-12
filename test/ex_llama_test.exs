@@ -31,7 +31,6 @@ defmodule ExLLamaTest do
   test "Async complete_with" do
     {:ok, llama} = ExLLama.load_model("./test/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
     {:ok, options} = ExLLama.Session.default_options()
-
     {:ok, session} = ExLLama.create_session(llama, %{options| seed: 2})
     ExLLama.advance_context(session, "<|user|>\n Say Hello. And only hello. Example \"Hello\".</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Repeat what you just said.</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Say Goodbye.</s>\n<|assistant|>\n")
     ExLLama.Session.start_completing_with(session, %{max_tokens: 512})
@@ -61,6 +60,30 @@ defmodule ExLLamaTest do
     {:ok, context} = ExLLama.Session.context(session)
     {:ok, as_str} = ExLLama.Model.decode_tokens(llama, context)
     assert as_str == " <|user|>\n Say Hello. And only hello. Example \"Hello\".</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Repeat what you just said.</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Say Goodbye.</s>\n<|assistant|>\n Goodbye</s>\n<|user|>\n Say Apple.</s>\n<|assistant|>\n Apple</s>\n<|user|>\n What did you just say?.</s>\n<|assistant|>\n"
+  end
+
+  test  "Chat Completion" do
+    {:ok, llama} = ExLLama.load_model("./test/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
+    thread = [
+      %{role: :user, content: "Say Hello. And only hello. Example \"Hello\"."},
+      %{role: :assistant, content: "Hello"},
+      %{role: :user, content: "Repeat what you just said."},
+      %{role: :assistant, content: "Hello"},
+      %{role: :user, content: "Say Goodbye."},
+      %{role: :assistant, content: "Goodbye"},
+      %{role: :user, content: "Say Apple."},
+      %{role: :assistant, content: "Apple"},
+      %{role: :user, content: "What did you just say?."},
+    ]
+
+    {:ok, response} = ExLLama.chat_completion(llama, thread, %{seed: 2})
+    assert response == %{
+             choices: [
+               %{reason: :end, role: "assistant", content: "Apple"},
+               %{reason: :end, role: "assistant", content: "Apple"},
+               %{reason: :end, role: "assistant", content: "Apple"}
+             ]
+           }
   end
 
 
