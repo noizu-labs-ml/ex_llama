@@ -6,6 +6,13 @@ defmodule ExLLama.Session do
   def default_options(), do: ExLLama.Nif.__session_nif_default_session_options__()
   def advance_context_with_tokens(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_advance_context_with_tokens__(session.resource, context)
   def advance_context(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_advance_context__(session.resource, context)
+  def start_completing_with(%__MODULE__{resource: _} = session, options) do
+    max_tokens = options[:max_tokens] || 512
+    pid = with nil <- options[:pid] do
+      self()
+    end
+    ExLLama.Nif.__session_nif_start_completing_with__(pid, session.resource, max_tokens)
+  end
   def completion(%__MODULE__{resource: _} = session, max_tokens, stop), do: ExLLama.Nif.__session_nif_completion__(session.resource, max_tokens, stop)
   def model(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_nif_model__(session.resource)
   def params(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_nif_params__(session.resource)

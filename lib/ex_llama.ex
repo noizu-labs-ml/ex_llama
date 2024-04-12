@@ -7,4 +7,11 @@ defmodule ExLLama do
 
   def advance_context(session, content), do: ExLLama.Session.advance_context(session, content)
   def completion(session, max_tokens, stop), do: ExLLama.Session.completion(session, max_tokens, stop)
+
+  def chat_completion(model, thread, options \\ nil) do
+    max_tokens = options[:max_tokens] || 512
+
+
+  end
+
 end

@@ -35,6 +35,7 @@ defmodule ExLLama.Nif do
   def __session_nif_default_session_options__(), do: :erlang.nif_error(:nif_not_loaded)
   def __session_nif_advance_context_with_tokens__(_, _), do: :erlang.nif_error(:nif_not_loaded)
   def __session_nif_advance_context__(_, _), do: :erlang.nif_error(:nif_not_loaded)
+  def __session_nif_start_completing_with__(_pid, _session, _max_tokens), do: :erlang.nif_error(:nif_not_loaded)
   def __session_nif_completion__(_, _, _), do: :erlang.nif_error(:nif_not_loaded)
   def __session_nif_model__(_), do: :erlang.nif_error(:nif_not_loaded)
   def __session_nif_params__(_), do: :erlang.nif_error(:nif_not_loaded)

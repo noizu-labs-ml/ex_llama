@@ -38,6 +38,7 @@ rustler::init!(
         nifs::ex_llama_session::__session_nif_default_session_options__,
         nifs::ex_llama_session::__session_nif_advance_context_with_tokens__,
         nifs::ex_llama_session::__session_nif_advance_context__,
+        nifs::ex_llama_session::__session_nif_start_completing_with__,
         nifs::ex_llama_session::__session_nif_completion__,
         nifs::ex_llama_session::__session_nif_model__,
         nifs::ex_llama_session::__session_nif_params__,

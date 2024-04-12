@@ -17,6 +17,26 @@ defmodule ExLLamaTest do
     assert llama.__struct__ == ExLLama.Model
   end
 
+  def receive_text(acc \\ []) do
+    receive do
+      :fin ->
+        Enum.reverse(acc)
+      x ->
+        receive_text([x | acc])
+    end
+  end
+
+  test "Async complete_with" do
+    {:ok, llama} = ExLLama.load_model("./test/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
+    {:ok, options} = ExLLama.Session.default_options()
+
+    {:ok, session} = ExLLama.create_session(llama, %{options| seed: 2})
+    ExLLama.advance_context(session, "<|user|>\n Say Hello. And only hello. Example \"Hello\".</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Repeat what you just said.</s>\n<|assistant|>\n Hello</s>\n<|user|>\n Say Goodbye.</s>\n<|assistant|>\n")
+    ExLLama.Session.start_completing_with(session, %{max_tokens: 512})
+    r = receive_text()
+    assert r == [" Good", "bye", "</", "s", ">", ""]
+  end
+
   test "Advance Context" do
     {:ok, llama} = ExLLama.load_model("./test/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
     {:ok, options} = ExLLama.Session.default_options()

@@ -1,7 +1,8 @@
 use llama_cpp::standard_sampler::StandardSampler;
 use llama_cpp::{SessionParams, Token};
 use regex::Regex;
-use rustler::ResourceArc;
+use rustler::{Env, ResourceArc};
+use rustler::types::Pid;
 use crate::refs::session_ref::ExLLamaSessionRef;
 use crate::structs::model::ExLLamaModel;
 use crate::structs::session::ExLLamaSession;
@@ -36,6 +37,29 @@ pub fn __session_nif_advance_context__(session:  ResourceArc<ExLLamaSessionRef>,
 }
 
 // start_completing
+
+#[rustler::nif(schedule = "DirtyCpu")]
+pub fn __session_nif_start_completing_with__(env: Env, pid: Pid, session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize) -> Result<&'static str,String> {
+    let lock = session.0.lock().expect("Locking the session failed");
+    let c = lock.deep_copy()  ;
+    match c {
+        Ok(ctx) => {
+            let mut pid = pid;
+            let mut ctx = ctx;
+            let handle = ctx.start_completing_with(StandardSampler::default(), max_predictions);
+            let i = handle.into_strings();
+            for completion in i {
+                //let gen_completion = rustler::types::tuple::make_tuple(&[rustler::types::atom::from_str("gen"), completion]);
+                env.send(&pid, completion).expect("Encoding completion failed");
+            }
+            let fin = rustler::types::Atom::from_str(env, "fin").expect("Encoding completion failed");
+            env.send(&pid, fin).expect("Encoding completion failed");
+            Ok("OK")
+        },
+        Err(e) => Err(e.to_string())
+    }
+}
+
 
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn __session_nif_completion__(session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize, stop: String) -> Result<String,String> {
