@@ -19,6 +19,8 @@ defmodule ExLLamaTest do
 
   def receive_text(acc \\ []) do
     receive do
+      x = {:ok, _} -> Enum.reverse([x|acc])
+      x = {:error, _} -> Enum.reverse([x|acc])
       :fin ->
         Enum.reverse(acc)
       x ->
