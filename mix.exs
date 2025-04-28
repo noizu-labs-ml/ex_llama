@@ -49,7 +49,7 @@ defmodule ExLLama.MixProject do
         project: "https://github.com/noizu-labs-ml/ex_llama",
         developer_github: "https://github.com/noizu"
       },
-      files: ~w(lib native mix.exs README.md CHANGELOG.md LICENSE*),
+      files: ~w(lib native priv mix.exs README.md CHANGELOG.md LICENSE*),
       exclude_patterns: ["priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"]
     ]
   end
@@ -64,7 +64,7 @@ defmodule ExLLama.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.32.1", runtime: false, optional: true},
+      {:rustler, "~> 0.32.1", runtime: false},
       {:ex_doc, "~> 0.28.3", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:genai_core, "~> 0.2"},
