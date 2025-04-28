@@ -49,7 +49,7 @@ defmodule ExLLama.MixProject do
         project: "https://github.com/noizu-labs-ml/ex_llama",
         developer_github: "https://github.com/noizu"
       },
-      files: ~w(lib native .foratter.exs mix.exs README.md CHANGELOG.md LICENSE*),
+      files: ~w(lib native mix.exs README.md CHANGELOG.md LICENSE*),
       exclude_patterns: ["priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"]
     ]
   end
