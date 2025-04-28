@@ -60,13 +60,15 @@ defmodule ExLLama.ChatTemplate.GemmaInstruct do
                          x = x
                              |> String.trim()
                              |> String.trim_trailing(eos_token)
+                         
+                         x = GenAI.Message.assistant(x)
                          finish_reason = if (tokens < options[:max_tokens]), do: :stop, else: :max_tokens
-                         %ExLLama.ChatCompletion.Choice{index: index, message: x, finish_reason: finish_reason}
+                         %GenAI.ChatCompletion.Choice{index: index, message: x, finish_reason: finish_reason}
                      end)
       completion_tokens = Enum.map(responses, fn {tokens,_} -> tokens end) |> Enum.max()
       prompt_tokens = options[:prompt_tokens]
-      usage = %ExLLama.ChatCompletion.Usage{prompt_tokens: prompt_tokens, total_tokens: completion_tokens + prompt_tokens, completion_tokens: completion_tokens}
-      completion = %ExLLama.ChatCompletion{id: nil, model: model_name, seed: options[:seed], choices: choices, usage: usage}
+      usage = %GenAI.ChatCompletion.Usage{prompt_tokens: prompt_tokens, total_tokens: completion_tokens + prompt_tokens, completion_tokens: completion_tokens}
+      completion = %GenAI.ChatCompletion{id: nil, model: model_name, seed: options[:seed], choices: choices, usage: usage}
       {:ok, completion}
     end
   end
