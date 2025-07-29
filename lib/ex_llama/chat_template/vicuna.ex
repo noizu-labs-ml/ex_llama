@@ -38,7 +38,7 @@ defmodule ExLLama.ChatTemplate.Vicuna do
     "#{String.trim(message.content)}\n\n"
   end
   defp format_line(message, eos_token) do
-    "#{message.role |> String.upcase()}: #{String.trim(message.content)}#{eos_token}\n"
+    "#{message.role |> to_string() |> String.upcase()}: #{String.trim(message.content)}#{eos_token}\n"
   end
 
   def extract_response(responses, model, options) do

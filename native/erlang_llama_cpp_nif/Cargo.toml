@@ -11,5 +11,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = "0.32.1"
-llama_cpp = {version = "0.3.1"}
+llama_cpp = {version = "0.3.2"}
 regex = "1"

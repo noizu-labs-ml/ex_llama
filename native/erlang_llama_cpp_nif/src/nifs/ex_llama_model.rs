@@ -4,6 +4,7 @@ use crate::structs::model::ExLLamaModel;
 use crate::structs::model_options::ModelOptions;
 use crate::structs::session::ExLLamaSession;
 use crate::structs::session_options::ExLLamaSessionOptions;
+use std::panic;
 
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -11,12 +12,20 @@ use crate::structs::session_options::ExLLamaSessionOptions;
 pub fn __model_nif_load_from_file__(path: String, model_options: ModelOptions) -> Result<ExLLamaModel, String> {
     let p = path.clone();
     let params = LlamaParams::from(model_options);
-    let model = LlamaModel::load_from_file(path, params);
-    match model {
-        Ok(model) =>
-            Ok(ExLLamaModel::new(p, model)),
-        Err(e) =>
-            Err(e.to_string()),
+    
+    // Catch panics that might occur from C++ exceptions during model loading
+    let result = panic::catch_unwind(|| {
+        LlamaModel::load_from_file(path, params)
+    });
+    
+    match result {
+        Ok(model_result) => {
+            match model_result {
+                Ok(model) => Ok(ExLLamaModel::new(p, model)),
+                Err(e) => Err(e.to_string()),
+            }
+        },
+        Err(_) => Err("Internal error: panic occurred during model loading".to_string())
     }
 }
 

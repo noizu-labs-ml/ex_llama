@@ -8,6 +8,7 @@ use crate::structs::completion::ExLLamaCompletion;
 use crate::structs::model::ExLLamaModel;
 use crate::structs::session::ExLLamaSession;
 use crate::structs::session_options::ExLLamaSessionOptions;
+use std::panic::{self, AssertUnwindSafe};
 
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -48,7 +49,13 @@ pub fn __session_nif_start_completing_with__(env: Env, pid: Pid, session:  Resou
             let mut pid = pid;
             let mut ctx = ctx;
             let handle = ctx.start_completing_with(StandardSampler::default(), max_predictions);
-            let i = handle.into_strings();
+            let i = match handle {
+                Ok(h) => h.into_strings(),
+                Err(e) => {
+                    env.send(&pid, format!("error: {}", e)).expect("Encoding completion failed");
+                    return Ok("OK");
+                }
+            };
             for completion in i {
                 //let gen_completion = rustler::types::tuple::make_tuple(&[rustler::types::atom::from_str("gen"), completion]);
                 env.send(&pid, completion).expect("Encoding completion failed");
@@ -64,18 +71,31 @@ pub fn __session_nif_start_completing_with__(env: Env, pid: Pid, session:  Resou
 
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn __session_nif_completion__(session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize, stop: Option<String>) -> Result<ExLLamaCompletion,String> {
-    let lock = session.0.lock().expect("Locking the session failed");
-    let c = lock.deep_copy()  ;
+    let lock = match session.0.lock() {
+        Ok(l) => l,
+        Err(_) => return Err("Failed to lock session".to_string())
+    };
+    
+    let c = lock.deep_copy();
     match c {
         Ok(ctx) => {
             let mut ctx = ctx;
             let prompt_size = ctx.context_size();
-            let completions = ctx.start_completing_with(StandardSampler::default(), max_predictions).into_strings();
+            
+            // Wrap the completion generation in panic handler
+            let handle = match ctx.start_completing_with(StandardSampler::default(), max_predictions) {
+                Ok(h) => h,
+                Err(e) => return Err(format!("Failed to start completion: {}", e))
+            };
+            let completions = handle.into_strings();
             let mut completions_str = String::new();
 
             match stop {
                 Some(x) => {
-                    let pattern = Regex::new(&x).unwrap(); // Compile the regex, handle errors as needed
+                    let pattern = match Regex::new(&x) {
+                        Ok(p) => p,
+                        Err(e) => return Err(format!("Invalid regex pattern: {}", e))
+                    };
                     for completion in completions {
                         completions_str.push_str(&completion);
                         if let Some(mat) = pattern.find(&completions_str) {
@@ -129,7 +149,7 @@ pub fn __session_nif_context__(session:  ResourceArc<ExLLamaSessionRef>) -> Resu
 
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn __session_nif_truncate_context__(session:  ResourceArc<ExLLamaSessionRef>, n_tokens: usize) -> Result<&'static str, String> {
-    let ctx = session.0.lock().expect("Locking the session failed");
+    let mut ctx = session.0.lock().expect("Locking the session failed");
     ctx.truncate_context(n_tokens);
     Ok("OK")
 }

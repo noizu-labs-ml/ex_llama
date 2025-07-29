@@ -1,47 +1,42 @@
-defmodule ExLLama.ChatTemplate.AmberChat do
+defmodule ExLLama.ChatTemplate.ChatQA do
   @moduledoc """
-  based on: [https://github.com/chujiezheng/chat_templates/blob/main/chat_templates/amberchat.jinja]
+  based on: [https://github.com/chujiezheng/chat_templates/blob/main/chat_templates/chatqa.jinja]
   ```jinja
   {% if messages[0]['role'] == 'system' %}
-    {% set loop_messages = messages[1:] %}
-    {% set system_message = messages[0]['content'].strip() + '\n' %}
+      {% set system_message = 'System: ' + messages[0]['content'] | trim %}
+      {% set messages = messages[1:] %}
   {% else %}
-    {% set loop_messages = messages %}
-    {% set system_message = '' %}
+      {% set system_message = '' %}
   {% endif %}
 
-  {% for message in loop_messages %}
-    {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
-        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
-    {% endif %}
+  {% if messages[0]['role'] == 'context' %}
+      {% set context_message = '\n\n' + messages[0]['content'] | trim %}
+      {% set messages = messages[1:] %}
+  {% else %}
+      {% set context_message = '' %}
+  {% endif %}
 
-    {% if loop.index0 == 0 %}
-        {{ bos_token + system_message }}
-    {% endif %}
+  {{ bos_token + system_message + context_message}}
+  {% for message in messages %}
+      {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+          {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+      {% endif %}
 
-    {% if message['role'] == 'user' %}
-        {{ '###Human: ' + message['content'].strip() + '\n' }}
-    {% elif message['role'] == 'assistant' %}
-        {{ '###Assistant: ' + message['content'].strip() + '\n' }}
-    {% endif %}
-
-    {% if loop.last and message['role'] == 'user' and add_generation_prompt %}
-        {{ '###Assistant:' }}
-    {% endif %}
+      {% if message['role'] == 'user' %}
+          {{ '\n\nUser: ' + message['content'] | trim }}
+      {% elif message['role'] == 'assistant' %}
+          {{ '\n\nAssistant: '  + message['content'] | trim }}
+      {% endif %}
   {% endfor %}
-  ````
+
+  {% if add_generation_prompt %}
+      {{ '\n\nAssistant:' }}
+  {% endif %}
+  ```
   """
 
   def support_list() do
-    [{~r"^amber.*$", 1}]
-  end
-
-  defp format_message(message) do
-    case message.role do
-      :user -> "###Human: #{String.trim(message.content)}\n"
-      :assistant -> "###Assistant: #{String.trim(message.content)}\n"
-      _ -> ""
-    end
+    [{~r"^.*chatqa.*$", 1}]
   end
 
   def extract_response(responses, model, options) do
@@ -66,13 +61,23 @@ defmodule ExLLama.ChatTemplate.AmberChat do
 
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
-      {system_message, loop_messages} = case Enum.at(thread, 0) do
+      # Handle system message
+      {system_message, remaining_messages} = case Enum.at(thread, 0) do
         %{role: :system, content: content} -> 
-          {String.trim(content) <> "\n", Enum.drop(thread, 1)}
+          {"System: #{String.trim(content)}", Enum.drop(thread, 1)}
         _ -> 
           {"", thread}
       end
 
+      # Handle context message
+      {context_message, loop_messages} = case Enum.at(remaining_messages, 0) do
+        %{role: :context, content: content} -> 
+          {"\n\n#{String.trim(content)}", Enum.drop(remaining_messages, 1)}
+        _ -> 
+          {"", remaining_messages}
+      end
+
+      # Build the message thread
       lines = loop_messages
               |> Enum.with_index()
               |> Enum.map(
@@ -81,27 +86,28 @@ defmodule ExLLama.ChatTemplate.AmberChat do
                        if rem(index, 2) != 0 && options[:strict] != false do
                          raise ExLLama.ChatTemplate.Exception, message: "Conversation roles must alternate user/assistant/user/assistant/...", handler: __MODULE__, entry: msg, row: index
                        end
-                       prefix = if index == 0, do: bos_token <> system_message, else: ""
-                       prefix <> format_message(msg)
+                       "\n\nUser: #{String.trim(msg.content)}"
 
                      {msg = %{role: :assistant}, index} ->
                        if rem(index, 2) != 1 && options[:strict] != false do
                          raise ExLLama.ChatTemplate.Exception, message: "Conversation roles must alternate user/assistant/user/assistant/...", handler: __MODULE__, entry: msg, row: index
                        end
-                       format_message(msg)
+                       "\n\nAssistant: #{String.trim(msg.content)}"
 
                      {msg, index} ->
                        unless options[:strict] == false or options[:expanded_roles] do
-                         raise ExLLama.ChatTemplate.Exception, message: "Only user, assistant, and system roles are supported", handler: __MODULE__, entry: msg, row: index
+                         raise ExLLama.ChatTemplate.Exception, message: "Only user, assistant, system, and context roles are supported", handler: __MODULE__, entry: msg, row: index
                        end
-                       format_message(msg)
+                       ""
                    end
                  ) |> Enum.join("")
       
+      result = bos_token <> system_message <> context_message <> lines
+      
       if options[:add_generation_prompt] && Enum.at(thread, -1)[:role] != :assistant do
-        {:ok, lines <> "###Assistant:"}
+        {:ok, result <> "\n\nAssistant:"}
       else
-        {:ok, lines}
+        {:ok, result}
       end
     end
   end
