@@ -41,7 +41,7 @@ defmodule ExLLama.ChatTemplate.GemmaInstruct do
     [ ]
   end
 
-  defp format_line(message, eos_token) do
+  defp format_line(message, _eos_token) do
     role = case message.role do
       :assistant -> :model
       x -> x
@@ -83,7 +83,7 @@ defmodule ExLLama.ChatTemplate.GemmaInstruct do
   def compact([h|t], acc), do: compact(t, [h|acc])
 
   def to_context(thread, model, options) do
-    with {:ok, bos_token} <- ExLLama.Model.__bos__(model),
+    with {:ok, _bos_token} <- ExLLama.Model.__bos__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
       lines = thread
               |> compact()

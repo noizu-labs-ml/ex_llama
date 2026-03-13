@@ -2,13 +2,12 @@ use llama_cpp::standard_sampler::StandardSampler;
 use llama_cpp::{SessionParams, Token};
 use regex::Regex;
 use rustler::{Env, ResourceArc};
-use rustler::types::Pid;
+use rustler::LocalPid;
 use crate::refs::session_ref::ExLLamaSessionRef;
 use crate::structs::completion::ExLLamaCompletion;
 use crate::structs::model::ExLLamaModel;
 use crate::structs::session::ExLLamaSession;
 use crate::structs::session_options::ExLLamaSessionOptions;
-use std::panic::{self, AssertUnwindSafe};
 
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -41,12 +40,12 @@ pub fn __session_nif_advance_context__(session:  ResourceArc<ExLLamaSessionRef>,
 // start_completing
 
 #[rustler::nif(schedule = "DirtyCpu")]
-pub fn __session_nif_start_completing_with__(env: Env, pid: Pid, session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize) -> Result<&'static str,String> {
+pub fn __session_nif_start_completing_with__(env: Env, pid: LocalPid, session:  ResourceArc<ExLLamaSessionRef>, max_predictions: usize) -> Result<&'static str,String> {
     let lock = session.0.lock().expect("Locking the session failed");
     let c = lock.deep_copy()  ;
     match c {
         Ok(ctx) => {
-            let mut pid = pid;
+            let pid = pid;
             let mut ctx = ctx;
             let handle = ctx.start_completing_with(StandardSampler::default(), max_predictions);
             let i = match handle {
@@ -150,7 +149,7 @@ pub fn __session_nif_context__(session:  ResourceArc<ExLLamaSessionRef>) -> Resu
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn __session_nif_truncate_context__(session:  ResourceArc<ExLLamaSessionRef>, n_tokens: usize) -> Result<&'static str, String> {
     let mut ctx = session.0.lock().expect("Locking the session failed");
-    ctx.truncate_context(n_tokens);
+    let _ = ctx.truncate_context(n_tokens);
     Ok("OK")
 }
 

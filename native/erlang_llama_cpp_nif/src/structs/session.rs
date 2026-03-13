@@ -3,8 +3,8 @@
 // The ExLLama struct also implements the Deref trait to allow it to be treated as a LLama object.
 
 
-use llama_cpp::{LlamaSession};
-use rustler::{NifStruct, ResourceArc};
+use llama_cpp::LlamaSession;
+use rustler::{NifStruct, Resource, ResourceArc};
 use crate::refs::session_ref::ExLLamaSessionRef;
 
 
@@ -15,6 +15,9 @@ pub struct ExLLamaSession {
     pub seed: u32,
     pub resource: ResourceArc<ExLLamaSessionRef>,
 }
+
+#[rustler::resource_impl]
+impl Resource for ExLLamaSession {}
 
 impl ExLLamaSession {
     pub fn new(model_name: String, seed: u32, session: LlamaSession) -> Self {

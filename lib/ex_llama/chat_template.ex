@@ -8,7 +8,7 @@ defmodule ExLLama.ChatTemplate do
   @callback to_context(thread, model, meta) :: {:ok, String.t}
   @callback extract_response(response :: [model_response], model, meta) :: {:ok, ExLLama.ChatResponse.t}
 
-  def pick_handler(model, meta) do
+  def pick_handler(_model, meta) do
     cond do
       x = meta[:template] -> x
       :else ->

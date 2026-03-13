@@ -3,9 +3,7 @@
 // The ExLLama struct also implements the Deref trait to allow it to be treated as a LLama object.
 
 
-use llama_cpp::{LlamaSession};
-use rustler::{NifStruct, ResourceArc};
-use crate::refs::session_ref::ExLLamaSessionRef;
+use rustler::NifStruct;
 
 
 #[derive(NifStruct)]

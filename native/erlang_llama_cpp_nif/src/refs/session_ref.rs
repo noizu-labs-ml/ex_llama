@@ -1,22 +1,15 @@
-// This module contains the Ref Wrapper structs which are a wrapper around the LLama structs from the llama_cpp crate.
-// These ref structs are used to ensure safe concurrent access to the LLama objects.
-// These ref structs is also marked as Send and Sync, allowing it to be shared across threads.
-
-
 use std::sync::Mutex;
-use llama_cpp::{LlamaSession};
+use llama_cpp::LlamaSession;
+use rustler::Resource;
 
 pub struct ExLLamaSessionRef(pub Mutex<LlamaSession>);
+
+#[rustler::resource_impl]
+impl Resource for ExLLamaSessionRef {}
 
 impl ExLLamaSessionRef {
     pub fn new(session: LlamaSession) -> Self {
         Self(Mutex::new(session))
-    }
-}
-
-impl Drop for ExLLamaSessionRef {
-    fn drop(&mut self) {
-        // println!("Dropping ExLLamaSessionRef");
     }
 }
 

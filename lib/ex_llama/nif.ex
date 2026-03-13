@@ -1,7 +1,8 @@
 defmodule ExLLama.Nif do
   use Rustler,
       otp_app: :ex_llama,
-      crate: :erlang_llama_cpp_nif
+      crate: :erlang_llama_cpp_nif,
+      mode: (if Mix.env() == :prod, do: :release, else: :debug)
 
   defstruct [
     resource: nil

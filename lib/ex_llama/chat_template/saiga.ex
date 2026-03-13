@@ -32,9 +32,6 @@ defmodule ExLLama.ChatTemplate.Saiga do
     [ ]
   end
 
-  defp format_line(message, bos_token, eos_token) do
-    "#{bos_token}#{message.role}\n#{String.trim(message.content)}#{eos_token}"
-  end
 
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
