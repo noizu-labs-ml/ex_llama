@@ -7,7 +7,7 @@ defmodule ExLLama.MixProject do
       name: "LLama CPP Nif Wrapper",
       description: description(),
       package: package(),
-      version: "0.1.1",
+      version: "0.2.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
 
@@ -21,13 +21,16 @@ defmodule ExLLama.MixProject do
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/project.plt"}
       ],
+      compilers: [:elixir_make] ++ Mix.compilers(),
+      make_targets: ["all"],
+      make_clean: ["clean"],
       deps: deps()
     ]
   end
 
 
   defp description() do
-    "NIF Wrapper around the rust LLamaCPP client allowing elixir code to load/infer against gguf format models."
+    "NIF Wrapper around llama.cpp allowing elixir code to load/infer against gguf format models."
   end
 
 
@@ -39,7 +42,7 @@ defmodule ExLLama.MixProject do
         project: "https://github.com/noizu-labs-ml/ex_llama",
         developer_github: "https://github.com/noizu"
       },
-      files: ~w(lib native priv mix.exs README.md CHANGELOG.md LICENSE*),
+      files: ~w(lib c_src priv Makefile mix.exs README.md CHANGELOG.md LICENSE*),
       exclude_patterns: ["priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"]
     ]
   end
@@ -54,7 +57,7 @@ defmodule ExLLama.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.37.0", runtime: false},
+      {:elixir_make, "~> 0.9", runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:genai_core, "~> 0.2"},

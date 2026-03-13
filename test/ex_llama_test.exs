@@ -45,7 +45,7 @@ defmodule ExLLamaTest do
     ExLLama.advance_context(session, "<|user|>\n Say Hello. And only hello. Example \"Hello\".\n<|assistant|>\n Hello\n<|user|>\n Repeat what you just said.\n<|assistant|>\n Hello\n<|user|>\n Say Goodbye.\n<|assistant|>\n")
     ExLLama.Session.start_completing_with(session, %{max_tokens: 512})
     r = receive_text()
-    assert r == [" Good", "bye", ""]
+    assert r == [" Good", "bye", "."]
   end
 
   test "Advance Context" do
@@ -91,7 +91,6 @@ defmodule ExLLamaTest do
       %{role: :user, content: "What did you just say?."},
     ]
 
-    # After stripping </s> completion_tokens are actually 3, although it's useful to know how many tokens were generated.
     {:ok, response} = ExLLama.chat_completion(llama, thread, [seed: 2, choices: 1])
     expected_path = priv_dir() <> "/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
     assert %GenAI.ChatCompletion{
@@ -101,10 +100,10 @@ defmodule ExLLamaTest do
              id: nil,
              model: ^expected_path,
              seed: 2,
-             usage: %GenAI.ChatCompletion.Usage{prompt_tokens: 143, total_tokens: 162, completion_tokens: 19},
+             usage: %GenAI.ChatCompletion.Usage{prompt_tokens: 137, total_tokens: 145, completion_tokens: 8},
              vsn: 1.0
            } = response
-    assert choice_a.content == "I'm not capable of speech, but I can tell you that I just said apple."
+    assert choice_a.content == "Say, what did you just say?"
   end
 
 

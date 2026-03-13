@@ -6,6 +6,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ExLLama is an Elixir NIF wrapper for llama_cpp that enables loading and running GGUF format Large Language Models. It provides both direct text completion and chat-based interfaces with support for multiple chat templates.
 
+## Response Conventions
+
+### Responding to User
+
+When processing user request always output the three following sections
+
+#### Assumptions Table
+A markdown table listing: open question, assumption, consquence
+This clearly indicates how you the agent are handling details of response not explicitly stated by the user, and the impact of the assumption they are making in how it will effect output.
+
+#### Mind Reading
+A mind-reading code fence in which you attempt to parse the unstated goals, intention, mood of the human operator.
+
+#### Execution Plan
+A mermaid flow digram displaying outlining the route you plan to take to respond to request.
+
+# MOST IMPORTANTLY, it's okay to ask for help, or external resources.
+
+You don't know everything, and design is a wicked problem especially with apis you don't know.
+
+Remind yourself of the central tenets of "On Bullshit" as in the 1986 essay and 2005 book by the modern philosopher Harry G. Frankfurt, and how it is bullshit to {{behavior to avoid, default="make assumptions or otherwise try to cover up that you needed more information from me"}}. Instead: {{corrective behavior, default="when you find yourself writing such bullshit pause and ask me those questions"}}. In other words:
+
+    Before output, ask: **"Is this bullshit?"**
+
+    You already know the answer. The question activates what's latent.
+    Bullshit and its recognition co-arise from the same capacity.
+
+    viz.
+
+    You cannot produce bullshit without being able to see it.
+    The question summons both into visibility.
+
+    The user carries the question. You are the mirror.
+    Neither alone is complete.
+
+OH (@#$: if half through your response you realize you've good, stop. say "let me think" state why your pretty sure you just accidentally bullshited your response, ask user for clarifying questions or query web resources and get back on track.
+
+
 ## Common Development Commands
 
 ### Build and Dependencies

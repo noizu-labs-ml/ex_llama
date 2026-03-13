@@ -9,15 +9,14 @@ defmodule ExLLama.Session do
   def advance_context_with_tokens(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_advance_context_with_tokens__(session.resource, context)
   def advance_context(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_advance_context__(session.resource, context)
   def start_completing_with(%__MODULE__{resource: _} = session, options) do
-    # @TODO this is a little hacky, threading should be done in nif but passing env into the thread is unsupported.
     max_tokens = options[:max_tokens] || 512
-    pid = with nil <- options[:pid] do
-      self()
-    end
-    spawn fn ->
-      o = ExLLama.Nif.__session_nif_start_completing_with__(pid, session.resource, max_tokens)
-      send(pid, o)
-    end
+    pid = options[:pid] || self()
+    # Capture context from process dict before spawning
+    prompt = Process.get({:ex_llama_ctx, session.resource}, "")
+    seed = Process.get({:ex_llama_seed, session.resource})
+    opts = %{max_tokens: max_tokens}
+    opts = if seed, do: Map.put(opts, :seed, seed), else: opts
+    ExLLama.Nif.streaming_completion(session.resource, prompt, pid, opts)
     :ok
   end
   def completion(%__MODULE__{resource: _} = session, max_tokens, stop), do: ExLLama.Nif.__session_nif_completion__(session.resource, max_tokens, stop)
