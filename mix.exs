@@ -7,7 +7,7 @@ defmodule ExLLama.MixProject do
       name: "LLama CPP Nif Wrapper",
       description: description(),
       package: package(),
-      version: "0.2.0",
+      version: "0.2.1",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
 
