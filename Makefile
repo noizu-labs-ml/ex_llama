@@ -9,8 +9,10 @@ UNAME_S := $(shell uname -s)
 # Erlang include path
 ERL_INCLUDE = $(shell erl -noshell -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop)
 
-# llama.cpp paths
+# llama.cpp paths and pinned version
 LLAMA_DIR = c_src/llama.cpp
+LLAMA_REPO = https://github.com/ggml-org/llama.cpp.git
+LLAMA_TAG = b8322
 LLAMA_BUILD = $(LLAMA_DIR)/build
 LLAMA_LIB = $(LLAMA_BUILD)/src/libllama.a
 GGML_LIB = $(LLAMA_BUILD)/ggml/src/libggml.a
@@ -44,8 +46,12 @@ all: $(PRIV_DIR) $(LLAMA_LIB) $(NIF_SO)
 $(PRIV_DIR):
 	mkdir -p $(PRIV_DIR)
 
+# Fetch llama.cpp if not present (hex package installs won't have the submodule)
+$(LLAMA_DIR)/CMakeLists.txt:
+	git clone --depth 1 --branch $(LLAMA_TAG) $(LLAMA_REPO) $(LLAMA_DIR)
+
 # Build llama.cpp as static library via cmake
-$(LLAMA_LIB):
+$(LLAMA_LIB): $(LLAMA_DIR)/CMakeLists.txt
 	cmake -B $(LLAMA_BUILD) -S $(LLAMA_DIR) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=OFF \

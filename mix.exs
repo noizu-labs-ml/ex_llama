@@ -42,8 +42,7 @@ defmodule ExLLama.MixProject do
         project: "https://github.com/noizu-labs-ml/ex_llama",
         developer_github: "https://github.com/noizu"
       },
-      files: ~w(lib c_src priv Makefile mix.exs README.md CHANGELOG.md LICENSE*),
-      exclude_patterns: ["priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"]
+      files: ~w(lib c_src/ex_llama_nif.cpp c_src/test_llama_nif.cpp Makefile mix.exs README.md CHANGELOG.md LICENSE*)
     ]
   end
 
@@ -60,7 +59,7 @@ defmodule ExLLama.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:genai_core, "~> 0.2"},
+      {:genai_core, "~> 0.3"},
       {:finch, "~> 0.15", optional: true},
       {:elixir_uuid, "~> 1.2", optional: true},
       {:shortuuid, "~> 4.0", optional: true},

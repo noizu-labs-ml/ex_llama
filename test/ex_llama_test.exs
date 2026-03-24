@@ -106,5 +106,32 @@ defmodule ExLLamaTest do
     assert choice_a.content == "Say, what did you just say?"
   end
 
+  @tag timeout: 120_000
+  test "Stress: repeated load/unload with completions" do
+    model_path = "local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    prompt = "<|user|>\n Say Hello.\n<|assistant|>\n"
+
+    for cycle <- 1..5 do
+      # Load model
+      {:ok, llama} = load_model(model_path)
+      assert llama.__struct__ == ExLLama.Model, "cycle #{cycle}: model load failed"
+
+      # Create session and run a sync completion
+      {:ok, options} = ExLLama.Session.default_options()
+      {:ok, session} = ExLLama.create_session(llama, %{options | seed: 2})
+      ExLLama.advance_context(session, prompt)
+      {:ok, %{content: response}} = ExLLama.completion(session, 64, "</s>")
+      assert String.length(response) > 0, "cycle #{cycle}: empty completion"
+      # Run a streaming completion on a fresh session
+      {:ok, session2} = ExLLama.create_session(llama, %{options | seed: 2})
+      ExLLama.advance_context(session2, prompt)
+      ExLLama.Session.start_completing_with(session2, %{max_tokens: 64})
+      tokens = receive_text()
+      assert length(tokens) > 0, "cycle #{cycle}: no streaming tokens"
+
+      # Let references go out of scope — GC should reclaim NIF resources
+      :erlang.garbage_collect()
+    end
+  end
 
 end
