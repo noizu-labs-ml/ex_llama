@@ -30,6 +30,7 @@ defmodule ExLLama.ChatTemplate.Vicuna do
   """
 
 
+  # ⟦𓌶𓄆𓀶𓍨⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     []
   end
@@ -41,6 +42,7 @@ defmodule ExLLama.ChatTemplate.Vicuna do
     "#{message.role |> to_string() |> String.upcase()}: #{String.trim(message.content)}#{eos_token}\n"
   end
 
+  # ⟦𓌗𓃇𓀿𓂗⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
@@ -64,6 +66,7 @@ defmodule ExLLama.ChatTemplate.Vicuna do
     end
   end
 
+  # ⟦𓌤𓎵𓍔𓆟⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, eos_token} <- ExLLama.Model.__eos__(model),
          {:ok, bos_token} <- ExLLama.Model.__bos__(model) do

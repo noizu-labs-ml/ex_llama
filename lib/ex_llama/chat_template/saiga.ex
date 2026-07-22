@@ -28,11 +28,13 @@ defmodule ExLLama.ChatTemplate.Saiga do
   ````
   """
 
+  # ⟦𓍖𓃸𓊖𓏉⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [ ]
   end
 
 
+  # ⟦𓏡𓀕𓅄𓏃⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
@@ -56,6 +58,7 @@ defmodule ExLLama.ChatTemplate.Saiga do
     end
   end
 
+  # ⟦𓐇𓌰𓐗𓊙⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do

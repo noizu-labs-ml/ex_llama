@@ -23,6 +23,7 @@ defmodule ExLLama.ChatTemplate.ChatML do
   ````
   """
 
+  # ⟦𓇧𓇊𓃳𓍭⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*chatml.*$", 1}, {~r"^.*chat.*ml.*$", 1}]
   end
@@ -31,6 +32,7 @@ defmodule ExLLama.ChatTemplate.ChatML do
     "<|im_start|>#{message.role}\n#{String.trim(message.content)}<|im_end|>\n"
   end
 
+  # ⟦𓋎𓆨𓍖𓀝⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -53,6 +55,7 @@ defmodule ExLLama.ChatTemplate.ChatML do
     end
   end
 
+  # ⟦𓍷𓄔𓏾𓀲⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
       system_offset = if Enum.at(thread, 0)[:role] == :system, do: 1, else: 0

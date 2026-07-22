@@ -33,6 +33,7 @@ defmodule ExLLama.ChatTemplate.MistralInstruct do
 
 
 
+  # ⟦𓌵𓉉𓐉𓊈⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [ ]
   end
@@ -44,6 +45,7 @@ defmodule ExLLama.ChatTemplate.MistralInstruct do
     end
   end
 
+  # ⟦𓉺𓉧𓂘𓎾⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
@@ -67,6 +69,7 @@ defmodule ExLLama.ChatTemplate.MistralInstruct do
     end
   end
 
+  # ⟦𓌜𓏴𓆜𓐙⟧ compact :: auto-generated pointer for public function compact
   def compact(thread, acc \\ [])
   def compact([], acc), do: acc
   def compact([h], acc), do: [h | acc]
@@ -76,6 +79,7 @@ defmodule ExLLama.ChatTemplate.MistralInstruct do
   end
   def compact([h|t], acc), do: compact(t, [h|acc])
 
+  # ⟦𓃓𓎗𓃺𓏚⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do

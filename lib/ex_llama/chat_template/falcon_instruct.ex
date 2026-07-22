@@ -27,6 +27,7 @@ defmodule ExLLama.ChatTemplate.FalconInstruct do
   ````
   """
 
+  # ⟦𓁅𓂇𓍞𓄁⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^falcon.*instruct.*$", 1}]
   end
@@ -42,6 +43,7 @@ defmodule ExLLama.ChatTemplate.FalconInstruct do
     |> String.replace("\n\n", "\n")
   end
 
+  # ⟦𓁋𓃖𓅮𓃓⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -62,6 +64,7 @@ defmodule ExLLama.ChatTemplate.FalconInstruct do
     end
   end
 
+  # ⟦𓐠𓄥𓍣𓇂⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, _model, options) do
     {system_message, loop_messages} = case Enum.at(thread, 0) do
       %{role: :system, content: content} -> 

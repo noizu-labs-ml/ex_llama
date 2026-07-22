@@ -17,6 +17,7 @@ defmodule ExLLama.ModelOptions do
                use_mlock: boolean()
              }
 
+  # ⟦𓄊𓄆𓈎𓅉⟧ new :: auto-generated pointer for public function new
   def new() do
     %__MODULE__{
       n_gpu_layers: 0,
