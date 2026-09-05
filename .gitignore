@@ -40,3 +40,6 @@ ex_llama-*.tar
 
 # Build artifacts
 /native/erlang_llama_cpp_nif/target/
+
+# Canonical worktree placement
+.claude/worktrees/
