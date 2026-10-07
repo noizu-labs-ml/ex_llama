@@ -60,10 +60,12 @@ defmodule ExLLama.Nif do
 
   # ⟦𓎱𓅗𓎽𓊺⟧ __model_nif_load_from_file__ :: auto-generated pointer for public function __model_nif_load_from_file__
   def __model_nif_load_from_file__(path, %ExLLama.ModelOptions{} = opts) do
-    # Forward only non-nil fields; nil means "use llama.cpp default"
+    # Forward only non-nil fields; nil means "use llama.cpp default".
+    # load_mode goes through resolve_load_mode so the deprecated
+    # use_mmap/use_mlock struct fields (direct-struct callers) still apply.
     bool_keys = [:vocab_only, :check_tensors, :use_extra_bufts, :no_host, :load_mtp]
     nif_opts =
-      %{n_gpu_layers: opts.n_gpu_layers || 0, load_mode: opts.load_mode || "auto"}
+      %{n_gpu_layers: opts.n_gpu_layers || 0, load_mode: ExLLama.ModelOptions.resolve_load_mode(opts) || "auto"}
       |> Map.merge(Map.new(for k <- bool_keys, v = Map.get(opts, k), v != nil, do: {k, v}))
     nif_opts =
       nif_opts
@@ -107,6 +109,11 @@ defmodule ExLLama.Nif do
 
     case create_context(model.resource, ctx_opts) do
       {:ok, ctx_ref} ->
+        # :seed is deliberately not in forward_keys: llama_context_params has no
+        # seed member upstream — seed is a sampling-time concern. Stash it on the
+        # context ref so every completion/embedding call seeds its sampler
+        # (same contract as Model.create_session/2).
+        if o[:seed], do: Process.put({:ex_llama_seed, ctx_ref}, o[:seed])
         {:ok, %ExLLama.Session{
           resource: ctx_ref,
           model_name: model.name,

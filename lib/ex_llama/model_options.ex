@@ -24,7 +24,16 @@ defmodule ExLLama.ModelOptions do
     * `0` - off: read whole tensors up front (default)
     * `1` - auto: lazy only for marked tensors larger than 4 GiB (requires mmap)
     * `2` - on: read rows of marked tensors on demand (requires mmap)
+
+  ## Deprecated: use_mmap / use_mlock
+
+  Kept as deprecated struct fields for backward compatibility with the pre-0.4
+  API. When set, they are translated to `load_mode` (`"mmap"`, `"mlock"`,
+  `"mmap+mlock"`, or `"none"` when both are false). An explicit `:load_mode`
+  always wins. They are never forwarded to the NIF directly.
   """
+
+  require Logger
 
   defstruct [
     :n_gpu_layers,
@@ -36,7 +45,10 @@ defmodule ExLLama.ModelOptions do
     :check_tensors,
     :use_extra_bufts,
     :no_host,
-    :load_mtp
+    :load_mtp,
+    # Deprecated: translated to :load_mode in new/1 and in the load bridge.
+    :use_mmap,
+    :use_mlock
   ]
 
   @type t :: %__MODULE__{
@@ -49,7 +61,9 @@ defmodule ExLLama.ModelOptions do
                check_tensors: boolean(),
                use_extra_bufts: boolean(),
                no_host: boolean(),
-               load_mtp: boolean()
+               load_mtp: boolean(),
+               use_mmap: boolean() | nil,
+               use_mlock: boolean() | nil
              }
 
   # ⟦𓄊𓄆𓈎𓅉⟧ new :: auto-generated pointer for public function new
@@ -71,8 +85,50 @@ defmodule ExLLama.ModelOptions do
   def new(params) when is_list(params), do: new(Map.new(params))
 
   def new(params) when is_map(params) do
+    params = translate_deprecated(params)
     base = Map.from_struct(new())
-    allowed_keys = Map.keys(base)
+    allowed_keys = Map.keys(base) ++ [:use_mmap, :use_mlock]
     __struct__(Map.merge(base, Map.take(params, allowed_keys)))
+  end
+
+  # Resolves the effective load_mode for a loaded-options map or struct,
+  # applying the deprecated use_mmap/use_mlock translation. An explicit
+  # non-nil :load_mode on the caller's params wins over the derived value.
+  @doc false
+  def resolve_load_mode(params) when is_map(params) do
+    mmap = Map.get(params, :use_mmap)
+    mlock = Map.get(params, :use_mlock)
+
+    if mmap == nil and mlock == nil do
+      Map.get(params, :load_mode)
+    else
+      Logger.warning(
+        "ExLLama.ModelOptions: :use_mmap/:use_mlock are deprecated; " <>
+          "translated to :load_mode (see moduledoc). Set :load_mode directly."
+      )
+
+      derived =
+        cond do
+          mmap -> if mlock, do: "mmap+mlock", else: "mmap"
+          mlock -> "mlock"
+          true -> "none"
+        end
+
+      case Map.get(params, :load_mode) do
+        nil -> derived
+        # "auto" is the struct default, not an explicit override, when the
+        # caller also set the deprecated booleans.
+        "auto" -> derived
+        explicit -> explicit
+      end
+    end
+  end
+
+  defp translate_deprecated(params) do
+    if Map.has_key?(params, :use_mmap) or Map.has_key?(params, :use_mlock) do
+      Map.put(params, :load_mode, resolve_load_mode(params))
+    else
+      params
+    end
   end
 end

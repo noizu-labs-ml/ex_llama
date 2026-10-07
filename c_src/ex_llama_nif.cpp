@@ -177,6 +177,22 @@ static std::string detokenize(const llama_vocab *vocab,
     return out;
 }
 
+// Range-checked enum/flag marshalling: a bad value from Elixir must produce
+// {:error, reason}, not be forwarded raw into llama_init_from_model.
+static bool in_range(int v, int lo, int hi) { return v >= lo && v <= hi; }
+
+static bool valid_kv_ggml_type(int t) {
+    switch (t) {
+        case GGML_TYPE_F16: case GGML_TYPE_BF16:
+        case GGML_TYPE_Q4_0: case GGML_TYPE_Q4_1:
+        case GGML_TYPE_Q5_0: case GGML_TYPE_Q5_1:
+        case GGML_TYPE_Q8_0:
+            return true;
+        default:
+            return false;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // NIF: load_model(path, opts_map) -> {:ok, model_ref} | {:error, reason}
 // ---------------------------------------------------------------------------
@@ -296,7 +312,11 @@ nif_create_context(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         if (map_get_uint(env, argv[1], "n_seq_max", u))   params.n_seq_max = u;
         if (map_get_int(env, argv[1], "n_threads", i))    params.n_threads = i;
         if (map_get_int(env, argv[1], "n_threads_batch", i)) params.n_threads_batch = i;
-        if (map_get_int(env, argv[1], "rope_scaling_type", i)) params.rope_scaling_type = (llama_rope_scaling_type)i;
+        if (map_get_int(env, argv[1], "rope_scaling_type", i)) {
+            if (!in_range(i, -1, (int)LLAMA_ROPE_SCALING_TYPE_MAX_VALUE))
+                return make_error(env, "rope_scaling_type out of range (-1..3)");
+            params.rope_scaling_type = (llama_rope_scaling_type)i;
+        }
         if (map_get_double(env, argv[1], "rope_freq_base", d))  params.rope_freq_base = (float)d;
         if (map_get_double(env, argv[1], "rope_freq_scale", d)) params.rope_freq_scale = (float)d;
         if (map_get_double(env, argv[1], "yarn_ext_factor", d)) params.yarn_ext_factor = (float)d;
@@ -304,11 +324,27 @@ nif_create_context(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         if (map_get_double(env, argv[1], "yarn_beta_fast", d))   params.yarn_beta_fast = (float)d;
         if (map_get_double(env, argv[1], "yarn_beta_slow", d))   params.yarn_beta_slow = (float)d;
         if (map_get_uint(env, argv[1], "yarn_orig_ctx", u))      params.yarn_orig_ctx = u;
-        if (map_get_int(env, argv[1], "type_k", i))        params.type_k = (ggml_type)i;
-        if (map_get_int(env, argv[1], "type_v", i))        params.type_v = (ggml_type)i;
-        if (map_get_int(env, argv[1], "flash_attn_type", i)) params.flash_attn_type = (llama_flash_attn_type)i;
-        if (map_get_int(env, argv[1], "pooling_type", i))  params.pooling_type = (enum llama_pooling_type)i;
-        if (map_get_int(env, argv[1], "attention_type", i)) params.attention_type = (llama_attention_type)i;
+        if (map_get_int(env, argv[1], "type_k", i)) {
+            if (!valid_kv_ggml_type(i)) return make_error(env, "type_k is not a supported KV-cache ggml type");
+            params.type_k = (ggml_type)i;
+        }
+        if (map_get_int(env, argv[1], "type_v", i)) {
+            if (!valid_kv_ggml_type(i)) return make_error(env, "type_v is not a supported KV-cache ggml type");
+            params.type_v = (ggml_type)i;
+        }
+        if (map_get_int(env, argv[1], "flash_attn_type", i)) {
+            if (!in_range(i, -1, 1)) return make_error(env, "flash_attn_type out of range (-1..1)");
+            params.flash_attn_type = (llama_flash_attn_type)i;
+        }
+        if (map_get_int(env, argv[1], "pooling_type", i)) {
+            if (!in_range(i, -1, (int)LLAMA_POOLING_TYPE_RANK))
+                return make_error(env, "pooling_type out of range (-1..4)");
+            params.pooling_type = (enum llama_pooling_type)i;
+        }
+        if (map_get_int(env, argv[1], "attention_type", i)) {
+            if (!in_range(i, -1, 1)) return make_error(env, "attention_type out of range (-1..1)");
+            params.attention_type = (llama_attention_type)i;
+        }
         if (map_get_bool(env, argv[1], "embeddings", b))  params.embeddings = b;
         if (map_get_bool(env, argv[1], "offload_kqv", b)) params.offload_kqv = b;
         if (map_get_bool(env, argv[1], "op_offload", b))  params.op_offload = b;
