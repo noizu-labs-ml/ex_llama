@@ -24,7 +24,7 @@ defmodule ExLLama.ChatTemplate.SolarInstruct do
   """
 
 
-  # ⟦𓆇𓀮𓍊𓊛⟧ support_list :: auto-generated pointer for public function support_list
+  # <REMOVED UUID HERE> support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [ ]
   end
@@ -33,7 +33,7 @@ defmodule ExLLama.ChatTemplate.SolarInstruct do
     "### #{String.capitalize(to_string(message.role))}:\n#{String.trim(message.content)}\n\n"
   end
 
-  # ⟦𓆳𓌯𓌷𓁮⟧ extract_response :: auto-generated pointer for public function extract_response
+  # <REMOVED UUID HERE> extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
@@ -57,7 +57,7 @@ defmodule ExLLama.ChatTemplate.SolarInstruct do
     end
   end
 
-  # ⟦𓌺𓋉𓄏𓇰⟧ to_context :: auto-generated pointer for public function to_context
+  # <REMOVED UUID HERE> to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
       lines = thread
