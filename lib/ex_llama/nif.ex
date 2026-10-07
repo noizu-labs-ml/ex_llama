@@ -60,12 +60,18 @@ defmodule ExLLama.Nif do
 
   # ⟦𓎱𓅗𓎽𓊺⟧ __model_nif_load_from_file__ :: auto-generated pointer for public function __model_nif_load_from_file__
   def __model_nif_load_from_file__(path, %ExLLama.ModelOptions{} = opts) do
-    nif_opts = %{
-      n_gpu_layers: opts.n_gpu_layers || 0,
-      vocab_only: opts.vocab_only || false,
-      use_mmap: opts.use_mmap || false,
-      use_mlock: opts.use_mlock || false
-    }
+    # Forward only non-nil fields; nil means "use llama.cpp default".
+    # load_mode goes through resolve_load_mode so the deprecated
+    # use_mmap/use_mlock struct fields (direct-struct callers) still apply.
+    bool_keys = [:vocab_only, :check_tensors, :use_extra_bufts, :no_host, :load_mtp]
+    nif_opts =
+      %{n_gpu_layers: opts.n_gpu_layers || 0, load_mode: ExLLama.ModelOptions.resolve_load_mode(opts) || "auto"}
+      |> Map.merge(Map.new(for k <- bool_keys, v = Map.get(opts, k), v != nil, do: {k, v}))
+    nif_opts =
+      nif_opts
+      |> maybe_put(:split_mode, opts.split_mode)
+      |> maybe_put(:main_gpu, opts.main_gpu)
+      |> maybe_put(:lazy_mode, opts.lazy_mode)
     case load_model(path, nif_opts) do
       {:ok, ref} ->
         {:ok, bos} = vocab_bos(ref)
@@ -85,18 +91,29 @@ defmodule ExLLama.Nif do
   # ⟦𓆶𓇅𓏵𓃽⟧ __model_nif_create_session__ :: auto-generated pointer for public function __model_nif_create_session__
   def __model_nif_create_session__(model, options) do
     o = if is_struct(options), do: Map.from_struct(options), else: Map.new(options || [])
-    ctx_opts = %{}
-    ctx_opts = if o[:n_ctx], do: Map.put(ctx_opts, :n_ctx, o[:n_ctx]), else: ctx_opts
-    ctx_opts = if o[:n_batch], do: Map.put(ctx_opts, :n_batch, o[:n_batch]), else: ctx_opts
-    ctx_opts = if o[:n_threads], do: Map.put(ctx_opts, :n_threads, o[:n_threads]), else: ctx_opts
-    ctx_opts = if o[:n_threads_batch], do: Map.put(ctx_opts, :n_threads_batch, o[:n_threads_batch]), else: ctx_opts
-    ctx_opts = if o[:rope_freq_base], do: Map.put(ctx_opts, :rope_freq_base, o[:rope_freq_base] / 1), else: ctx_opts
-    ctx_opts = if o[:rope_freq_scale], do: Map.put(ctx_opts, :rope_freq_scale, o[:rope_freq_scale] / 1), else: ctx_opts
-    ctx_opts = if o[:embedding], do: Map.put(ctx_opts, :embeddings, o[:embedding]), else: ctx_opts
-    ctx_opts = if o[:offload_kqv] != nil, do: Map.put(ctx_opts, :offload_kqv, o[:offload_kqv]), else: ctx_opts
+    # Only forward explicitly-set keys so llama.cpp defaults are preserved.
+    forward_keys = [
+      :n_ctx, :n_batch, :n_ubatch, :n_seq_max,
+      :n_threads, :n_threads_batch,
+      :rope_scaling_type, :rope_freq_base, :rope_freq_scale,
+      :yarn_ext_factor, :yarn_attn_factor, :yarn_beta_fast, :yarn_beta_slow, :yarn_orig_ctx,
+      :type_k, :type_v,
+      :flash_attn_type, :pooling_type, :attention_type,
+      :op_offload, :kv_unified, :swa_full
+    ]
+    ctx_opts =
+      forward_keys
+      |> Enum.reduce(%{}, fn k, acc -> maybe_put(acc, k, o[k]) end)
+      |> maybe_put(:embeddings, if(o[:embedding] != nil, do: o[:embedding], else: nil))
+      |> maybe_put(:offload_kqv, if(o[:offload_kqv] != nil, do: o[:offload_kqv], else: nil))
 
     case create_context(model.resource, ctx_opts) do
       {:ok, ctx_ref} ->
+        # :seed is deliberately not in forward_keys: llama_context_params has no
+        # seed member upstream — seed is a sampling-time concern. Stash it on the
+        # context ref so every completion/embedding call seeds its sampler
+        # (same contract as Model.create_session/2).
+        if o[:seed], do: Process.put({:ex_llama_seed, ctx_ref}, o[:seed])
         {:ok, %ExLLama.Session{
           resource: ctx_ref,
           model_name: model.name,
@@ -329,4 +346,10 @@ defmodule ExLLama.Nif do
       error -> error
     end
   end
+
+  # ---- Private helpers ----
+
+  # Put key/value into map only when value is set (non-nil); false is a meaningful value.
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
