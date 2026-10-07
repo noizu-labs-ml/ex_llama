@@ -199,8 +199,10 @@ defmodule ExLLama.Nif do
       yarn_beta_fast: 0.0,
       yarn_beta_slow: 0.0,
       yarn_orig_ctx: 0,
-      type_k: 0,
-      type_v: 0,
+      # ggml type 1 = GGML_TYPE_F16 (type 0/F32 is not a valid KV-cache type;
+      # see valid_kv_ggml_type in c_src/ex_llama_nif.cpp)
+      type_k: 1,
+      type_v: 1,
       embedding: false,
       offload_kqv: true,
       pooling: false
