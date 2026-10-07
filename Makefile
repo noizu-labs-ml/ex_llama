@@ -42,7 +42,14 @@ endif
 
 # All static libs to link
 LLAMA_LIBS = $(LLAMA_LIB) $(GGML_LIB) $(GGML_BASE_LIB) $(GGML_CPU_LIB) $(GGML_BLAS_LIB) $(GGML_METAL_LIB)
-LINK_LIBS = -lstdc++ -lm -lpthread $(METAL_FLAGS)
+# ggml-cpu builds with OpenMP on Linux by default; the .so needs -lgomp to load
+OMP_LIB = $(findstring Linux,$(UNAME_S))
+ifeq ($(OMP_LIB),Linux)
+	OMP_LIB = -lgomp
+else
+	OMP_LIB =
+endif
+LINK_LIBS = -lstdc++ -lm -lpthread $(OMP_LIB) $(METAL_FLAGS)
 
 all: $(PRIV_DIR) $(LLAMA_LIB) $(NIF_SO)
 
