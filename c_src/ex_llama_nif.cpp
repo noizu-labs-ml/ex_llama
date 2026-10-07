@@ -192,14 +192,64 @@ nif_load_model(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     if (argc > 1 && enif_is_map(env, argv[1])) {
         unsigned int u;
         bool b;
+        int i;
+        std::string s;
         if (map_get_uint(env, argv[1], "n_gpu_layers", u))
             params.n_gpu_layers = (int32_t)u;
+        if (map_get_uint(env, argv[1], "main_gpu", u))
+            params.main_gpu = (int32_t)u;
+        if (map_get_string(env, argv[1], "split_mode", s)) {
+            if      (s == "none")  params.split_mode = LLAMA_SPLIT_MODE_NONE;
+            else if (s == "layer") params.split_mode = LLAMA_SPLIT_MODE_LAYER;
+            else if (s == "row")   params.split_mode = LLAMA_SPLIT_MODE_ROW;
+            else if (s != "tensor")
+                return make_error_bin(env, "invalid split_mode: " + s + " (expected none|layer|row)");
+            else                   params.split_mode = LLAMA_SPLIT_MODE_TENSOR;
+        }
+        if (map_get_int(env, argv[1], "lazy_mode", i)) {
+            switch (i) {
+                case LLAMA_LAZY_MODE_OFF: case LLAMA_LAZY_MODE_AUTO: case LLAMA_LAZY_MODE_ON:
+                    params.lazy_mode = (llama_lazy_mode)i;
+                    break;
+                default:
+                    return make_error_bin(env, "invalid lazy_mode value: " + std::to_string(i));
+            }
+        }
         if (map_get_bool(env, argv[1], "vocab_only", b))
             params.vocab_only = b;
-        if (map_get_bool(env, argv[1], "use_mmap", b))
-            params.use_mmap = b;
-        if (map_get_bool(env, argv[1], "use_mlock", b))
-            params.use_mlock = b;
+        if (map_get_bool(env, argv[1], "check_tensors", b))
+            params.check_tensors = b;
+        if (map_get_bool(env, argv[1], "use_extra_bufts", b))
+            params.use_extra_bufts = b;
+        if (map_get_bool(env, argv[1], "no_host", b))
+            params.no_host = b;
+        if (map_get_bool(env, argv[1], "load_mtp", b))
+            params.load_mtp = b;
+        // llama.cpp >= v0.6.0 replaced use_mmap/use_mlock/use_direct_io with load_mode.
+        // llama_load_mode_from_str GGML_ABORTs on unknown input, so validate here.
+        if (map_get_string(env, argv[1], "load_mode", s)) {
+            if      (s == "auto")        params.load_mode = LLAMA_LOAD_MODE_AUTO;
+            else if (s == "none")        params.load_mode = LLAMA_LOAD_MODE_NONE;
+            else if (s == "mmap")        params.load_mode = LLAMA_LOAD_MODE_MMAP;
+            else if (s == "mlock")       params.load_mode = LLAMA_LOAD_MODE_MLOCK;
+            else if (s == "mmap+mlock" || s == "mmap_mlock")
+                                          params.load_mode = LLAMA_LOAD_MODE_MMAP_MLOCK;
+            else if (s == "dio" || s == "direct_io")
+                                          params.load_mode = LLAMA_LOAD_MODE_DIRECT_IO;
+            else
+                return make_error_bin(env, "invalid load_mode: " + s +
+                    " (expected auto|none|mmap|mlock|mmap+mlock|direct_io)");
+        } else if (map_get_int(env, argv[1], "load_mode", i)) {
+            switch (i) {
+                case LLAMA_LOAD_MODE_AUTO: case LLAMA_LOAD_MODE_NONE:
+                case LLAMA_LOAD_MODE_MMAP: case LLAMA_LOAD_MODE_MLOCK:
+                case LLAMA_LOAD_MODE_MMAP_MLOCK: case LLAMA_LOAD_MODE_DIRECT_IO:
+                    params.load_mode = (llama_load_mode)i;
+                    break;
+                default:
+                    return make_error_bin(env, "invalid load_mode value: " + std::to_string(i));
+            }
+        }
     }
 
     llama_model *model = nullptr;
@@ -242,12 +292,28 @@ nif_create_context(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         bool b;
         if (map_get_uint(env, argv[1], "n_ctx", u))       params.n_ctx = u;
         if (map_get_uint(env, argv[1], "n_batch", u))     params.n_batch = u;
+        if (map_get_uint(env, argv[1], "n_ubatch", u))    params.n_ubatch = u;
+        if (map_get_uint(env, argv[1], "n_seq_max", u))   params.n_seq_max = u;
         if (map_get_int(env, argv[1], "n_threads", i))    params.n_threads = i;
         if (map_get_int(env, argv[1], "n_threads_batch", i)) params.n_threads_batch = i;
+        if (map_get_int(env, argv[1], "rope_scaling_type", i)) params.rope_scaling_type = (llama_rope_scaling_type)i;
         if (map_get_double(env, argv[1], "rope_freq_base", d))  params.rope_freq_base = (float)d;
         if (map_get_double(env, argv[1], "rope_freq_scale", d)) params.rope_freq_scale = (float)d;
+        if (map_get_double(env, argv[1], "yarn_ext_factor", d)) params.yarn_ext_factor = (float)d;
+        if (map_get_double(env, argv[1], "yarn_attn_factor", d)) params.yarn_attn_factor = (float)d;
+        if (map_get_double(env, argv[1], "yarn_beta_fast", d))   params.yarn_beta_fast = (float)d;
+        if (map_get_double(env, argv[1], "yarn_beta_slow", d))   params.yarn_beta_slow = (float)d;
+        if (map_get_uint(env, argv[1], "yarn_orig_ctx", u))      params.yarn_orig_ctx = u;
+        if (map_get_int(env, argv[1], "type_k", i))        params.type_k = (ggml_type)i;
+        if (map_get_int(env, argv[1], "type_v", i))        params.type_v = (ggml_type)i;
+        if (map_get_int(env, argv[1], "flash_attn_type", i)) params.flash_attn_type = (llama_flash_attn_type)i;
+        if (map_get_int(env, argv[1], "pooling_type", i))  params.pooling_type = (enum llama_pooling_type)i;
+        if (map_get_int(env, argv[1], "attention_type", i)) params.attention_type = (llama_attention_type)i;
         if (map_get_bool(env, argv[1], "embeddings", b))  params.embeddings = b;
         if (map_get_bool(env, argv[1], "offload_kqv", b)) params.offload_kqv = b;
+        if (map_get_bool(env, argv[1], "op_offload", b))  params.op_offload = b;
+        if (map_get_bool(env, argv[1], "kv_unified", b))  params.kv_unified = b;
+        if (map_get_bool(env, argv[1], "swa_full", b))    params.swa_full = b;
     }
 
     llama_context *ctx = llama_init_from_model(mres->model, params);
@@ -374,6 +440,10 @@ nif_model_info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     const llama_vocab *vocab = llama_model_get_vocab(mres->model);
 
     ERL_NIF_TERM map = enif_make_new_map(env);
+    char desc[256];
+    llama_model_desc(mres->model, desc, sizeof(desc));
+    enif_make_map_put(env, map, make_atom(env, "desc"),
+                      make_binary_string(env, desc), &map);
     enif_make_map_put(env, map, make_atom(env, "n_vocab"),
                       enif_make_int(env, llama_vocab_n_tokens(vocab)), &map);
     enif_make_map_put(env, map, make_atom(env, "n_embd"),

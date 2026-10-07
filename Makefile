@@ -12,7 +12,7 @@ ERL_INCLUDE = $(shell erl -noshell -eval 'io:format("~s", [lists:concat([code:ro
 # llama.cpp paths and pinned version
 LLAMA_DIR = c_src/llama.cpp
 LLAMA_REPO = https://github.com/ggml-org/llama.cpp.git
-LLAMA_TAG = b8322
+LLAMA_TAG = v0.6.0
 LLAMA_BUILD = $(LLAMA_DIR)/build
 LLAMA_LIB = $(LLAMA_BUILD)/src/libllama.a
 GGML_LIB = $(LLAMA_BUILD)/ggml/src/libggml.a
@@ -55,6 +55,9 @@ $(LLAMA_LIB): $(LLAMA_DIR)/CMakeLists.txt
 	cmake -B $(LLAMA_BUILD) -S $(LLAMA_DIR) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=OFF \
+		-DLLAMA_BUILD_COMMON=OFF \
+		-DLLAMA_BUILD_TOOLS=OFF \
+		-DLLAMA_BUILD_APP=OFF \
 		-DLLAMA_BUILD_TESTS=OFF \
 		-DLLAMA_BUILD_EXAMPLES=OFF \
 		-DLLAMA_BUILD_SERVER=OFF
