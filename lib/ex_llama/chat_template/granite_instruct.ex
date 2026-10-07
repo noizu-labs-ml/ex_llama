@@ -33,6 +33,7 @@ defmodule ExLLama.ChatTemplate.GraniteInstruct do
   ```
   """
 
+  # ⟦𓌏𓄤𓊟𓂮⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*granite.*3.*$", 1}, {~r"^.*granite.*instruct.*$", 1}]
   end
@@ -62,6 +63,7 @@ defmodule ExLLama.ChatTemplate.GraniteInstruct do
   end
   defp format_tools(_), do: ""
 
+  # ⟦𓂓𓋟𓂉𓂥⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -84,6 +86,7 @@ defmodule ExLLama.ChatTemplate.GraniteInstruct do
     end
   end
 
+  # ⟦𓐈𓍍𓐑𓅑⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, _model, options) do
     # Handle tools if present
     tools_text = format_tools(options[:tools])

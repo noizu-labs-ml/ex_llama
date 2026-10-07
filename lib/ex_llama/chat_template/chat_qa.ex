@@ -35,10 +35,12 @@ defmodule ExLLama.ChatTemplate.ChatQA do
   ```
   """
 
+  # ⟦𓁋𓏾𓅘𓂫⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*chatqa.*$", 1}]
   end
 
+  # ⟦𓄫𓉃𓎆𓁍⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -59,6 +61,7 @@ defmodule ExLLama.ChatTemplate.ChatQA do
     end
   end
 
+  # ⟦𓂈𓁿𓏨𓋙⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
       # Handle system message

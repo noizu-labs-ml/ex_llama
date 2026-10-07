@@ -32,6 +32,7 @@ defmodule ExLLama.ChatTemplate.AmberChat do
   ````
   """
 
+  # ⟦𓈲𓏟𓄶𓅔⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^amber.*$", 1}]
   end
@@ -44,6 +45,7 @@ defmodule ExLLama.ChatTemplate.AmberChat do
     end
   end
 
+  # ⟦𓁧𓋐𓈄𓈽⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -64,6 +66,7 @@ defmodule ExLLama.ChatTemplate.AmberChat do
     end
   end
 
+  # ⟦𓄲𓅹𓂑𓇼⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
       {system_message, loop_messages} = case Enum.at(thread, 0) do

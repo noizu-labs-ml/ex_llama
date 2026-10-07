@@ -29,10 +29,12 @@ defmodule ExLLama.ChatTemplate.Alpaca do
   ````
   """
 
+  # ⟦𓈨𓈖𓍉𓍨⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^alpaca.*$", 1}]
   end
 
+  # ⟦𓀋𓋙𓋷𓆪⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, eos_token} <- ExLLama.Model.__eos__(model),
          {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
@@ -57,6 +59,7 @@ defmodule ExLLama.ChatTemplate.Alpaca do
     end
   end
 
+  # ⟦𓍥𓅬𓍧𓌭⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do

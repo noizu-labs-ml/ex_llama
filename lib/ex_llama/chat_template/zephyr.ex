@@ -22,6 +22,7 @@ defmodule ExLLama.ChatTemplate.Zephyr do
   ```
   """
 
+  # ⟦𓍅𓊢𓅶𓂓⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [ {~r"^tinyllama-1.1b.*$" , 1}]
   end
@@ -30,6 +31,7 @@ defmodule ExLLama.ChatTemplate.Zephyr do
     "<|#{message.role}|>\n #{String.trim(message.content)}#{eos_token}\n"
   end
 
+  # ⟦𓄄𓐤𓍝𓐟⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, eos_token} <- ExLLama.Model.__eos__(model),
          {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
@@ -56,6 +58,7 @@ defmodule ExLLama.ChatTemplate.Zephyr do
     end
   end
 
+  # ⟦𓀧𓅿𓎀𓋞⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
       system_message_offset =  if (Enum.at(thread, 0)[:role] == :system), do: 1, else: 0

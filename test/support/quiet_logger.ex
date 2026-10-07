@@ -3,6 +3,7 @@ defmodule ExLLama.Test.QuietLogger do
   Helper to suppress stderr output during tests.
   """
 
+  # ⟦𓀔𓏺𓏼𓍗⟧ suppress_stderr :: auto-generated pointer for public function suppress_stderr
   def suppress_stderr(fun) do
     # Save original stderr
     original_stderr = :erlang.group_leader()

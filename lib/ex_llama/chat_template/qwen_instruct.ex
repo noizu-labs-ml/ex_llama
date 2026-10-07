@@ -8,6 +8,7 @@ defmodule ExLLama.ChatTemplate.QwenInstruct do
 
   @default_system_message "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
 
+  # ⟦𓂫𓌬𓀽𓏽⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*qwen.*2\.5.*instruct.*$", 1}, {~r"^.*qwen2\.5.*$", 1}]
   end
@@ -96,6 +97,7 @@ defmodule ExLLama.ChatTemplate.QwenInstruct do
 
   defp format_message(_), do: ""
 
+  # ⟦𓁼𓅊𓅷𓊱⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -118,6 +120,7 @@ defmodule ExLLama.ChatTemplate.QwenInstruct do
     end
   end
 
+  # ⟦𓂆𓆻𓁉𓊎⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, _model, options) do
     tools = options[:tools]
     

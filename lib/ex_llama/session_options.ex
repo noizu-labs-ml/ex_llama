@@ -20,6 +20,7 @@ defmodule ExLLama.SessionOptions do
     :pooling,
   ]
 
+  # ⟦𓉱𓋯𓍻𓉐⟧ new :: auto-generated pointer for public function new
   def new() do
     {:ok, session_options} = ExLLama.Session.default_options()
     session_options
