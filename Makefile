@@ -18,11 +18,14 @@ LLAMA_LIB = $(LLAMA_BUILD)/src/libllama.a
 GGML_LIB = $(LLAMA_BUILD)/ggml/src/libggml.a
 GGML_BASE_LIB = $(LLAMA_BUILD)/ggml/src/libggml-base.a
 GGML_CPU_LIB = $(LLAMA_BUILD)/ggml/src/libggml-cpu.a
-GGML_BLAS_LIB = $(LLAMA_BUILD)/ggml/src/ggml-blas/libggml-blas.a
+# Optional backend libs: linked only when the cmake build actually produced
+# them (e.g. no BLAS on runners without OpenBLAS; GGML_BLAS defaults to OFF).
+# Deferred expansion (+ wildcard) means this resolves after the llama.cpp build.
+GGML_BLAS_LIB = $(wildcard $(LLAMA_BUILD)/ggml/src/ggml-blas/libggml-blas.a)
 
 # Metal support on macOS
 ifeq ($(UNAME_S),Darwin)
-	GGML_METAL_LIB = $(LLAMA_BUILD)/ggml/src/ggml-metal/libggml-metal.a
+	GGML_METAL_LIB = $(wildcard $(LLAMA_BUILD)/ggml/src/ggml-metal/libggml-metal.a)
 	METAL_FLAGS = -framework Foundation -framework Metal -framework MetalKit -framework Accelerate
 else
 	GGML_METAL_LIB =
