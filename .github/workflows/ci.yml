@@ -34,6 +34,15 @@ jobs:
         restore-keys: ${{ runner.os }}-mix-
     - name: Install dependencies
       run: mix deps.get
+    - name: Restore test model cache
+      uses: actions/cache@v3
+      with:
+        path: priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+        key: gguf-tinyllama-1.1b-chat-v1.0.Q4_K_M
+    - name: Download test model
+      # GGUFs are gitignored; fetched locally via init.sh. Mirror that in CI
+      # so the model-dependent tests run (skipped re-download on cache hit).
+      run: cd priv/models/local_llama/tiny_llama && bash init.sh
     - name: Compile
       run: mix compile --warnings-as-errors
     - name: Run tests
