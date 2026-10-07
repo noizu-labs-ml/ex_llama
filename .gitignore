@@ -13,12 +13,14 @@ test/models/*
 .tool-versions
 
 # The directory Mix will write compiled artifacts to.
+/_build
 /_build/
 
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
 # The directory Mix downloads your dependencies sources to.
+/deps
 /deps/
 
 # Where third-party dependencies like ExDoc output generated docs.
@@ -47,3 +49,6 @@ ex_llama-*.tar
 
 # Canonical worktree placement
 .claude/worktrees/
+
+# Built NIF artifacts (built locally by elixir_make, never shipped from git)
+/priv/*.so
