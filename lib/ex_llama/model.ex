@@ -35,7 +35,17 @@ defmodule ExLLama.Model do
         create_session(model, options)
     end
   end
-  def create_session(model, options), do: ExLLama.Nif.__model_nif_create_session__(model, options)
+  def create_session(model, options) do
+    case ExLLama.Nif.__model_nif_create_session__(model, options) do
+      {:ok, session} ->
+        o = if is_struct(options), do: Map.from_struct(options), else: Map.new(options || [])
+        if o[:seed], do: Process.put({:ex_llama_seed, session.resource}, o[:seed])
+        Process.put({:ex_llama_model, session.resource}, model)
+        if is_struct(options), do: Process.put({:ex_llama_params, session.resource}, options)
+        {:ok, session}
+      error -> error
+    end
+  end
 
   def embeddings(model, inputs, options), do: ExLLama.Nif.__model_nif_embeddings__(model, inputs, options)
 

@@ -1,34 +1,34 @@
-defmodule ExLLama.ChatTemplate.ChatML do
+defmodule ExLLama.ChatTemplate.Llama3Instruct do
   @moduledoc """
-  based on: [https://github.com/chujiezheng/chat_templates/blob/main/chat_templates/chatml.jinja]
+  based on: [https://github.com/chujiezheng/chat_templates/blob/main/chat_templates/llama-3-instruct.jinja]
   ```jinja
-    {% if messages[0]['role'] == 'system' %}
-    {% set offset = 1 %}
+  {% if messages[0]['role'] == 'system' %}
+      {% set offset = 1 %}
   {% else %}
-    {% set offset = 0 %}
+      {% set offset = 0 %}
   {% endif %}
 
   {{ bos_token }}
   {% for message in messages %}
-    {% if (message['role'] == 'user') != (loop.index0 % 2 == offset) %}
-        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
-    {% endif %}
+      {% if (message['role'] == 'user') != (loop.index0 % 2 == offset) %}
+          {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+      {% endif %}
 
-    {{ '<|im_start|>' + message['role'] + '\n' + message['content'].strip() + '<|im_end|>\n' }}
-
-    {% if loop.last and message['role'] == 'user' and add_generation_prompt %}
-        {{ '<|im_start|>assistant\n' }}
-    {% endif %}
+      {{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' + message['content'] | trim + '<|eot_id|>' }}
   {% endfor %}
-  ````
+
+  {% if add_generation_prompt %}
+      {{ '<|start_header_id|>' + 'assistant' + '<|end_header_id|>\n\n' }}
+  {% endif %}
+  ```
   """
 
   def support_list() do
-    [{~r"^.*chatml.*$", 1}, {~r"^.*chat.*ml.*$", 1}]
+    [{~r"^.*llama.*3.*instruct.*$", 1}, {~r"^.*llama-3.*$", 1}]
   end
 
   defp format_message(message) do
-    "<|im_start|>#{message.role}\n#{String.trim(message.content)}<|im_end|>\n"
+    "<|start_header_id|>#{message.role}<|end_header_id|>\n\n#{String.trim(message.content)}<|eot_id|>"
   end
 
   def extract_response(responses, model, options) do
@@ -40,7 +40,7 @@ defmodule ExLLama.ChatTemplate.ChatML do
                        {{tokens, x}, index} ->
                          content = x 
                                    |> String.trim()
-                                   |> String.trim_trailing("<|im_end|>")
+                                   |> String.trim_trailing("<|eot_id|>")
                          message = GenAI.Message.assistant(content)
                          finish_reason = if (tokens < options[:max_tokens]), do: :stop, else: :max_tokens
                          %GenAI.ChatCompletion.Choice{index: index, message: message, finish_reason: finish_reason}
@@ -90,7 +90,7 @@ defmodule ExLLama.ChatTemplate.ChatML do
       result = bos_token <> lines
       
       if options[:add_generation_prompt] && Enum.at(thread, -1)[:role] != :assistant do
-        {:ok, result <> "<|im_start|>assistant\n"}
+        {:ok, result <> "<|start_header_id|>assistant<|end_header_id|>\n\n"}
       else
         {:ok, result}
       end

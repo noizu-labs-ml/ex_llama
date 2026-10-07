@@ -26,7 +26,6 @@ defmodule ExLLama do
       end
     )
     session_options = ExLLama.SessionOptions.new(so)
-    seed = session_options.seed
     choices = options[:choices] || @default_choices
     max_tokens = options[:max_tokens] || @default_max_tokens
     with {:ok, session} <- ExLLama.create_session(model, session_options),

@@ -7,10 +7,10 @@ defmodule ExLLama.MixProject do
       name: "LLama CPP Nif Wrapper",
       description: description(),
       package: package(),
-      version: "0.1.0",
+      version: "0.2.1",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
-      rustler_crates: rustler_crates(),
+
       docs: [
         main: "ExLLama",
         extras: [
@@ -21,27 +21,20 @@ defmodule ExLLama.MixProject do
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/project.plt"}
       ],
+      compilers: [:elixir_make] ++ Mix.compilers(),
+      make_targets: ["all"],
+      make_clean: ["clean"],
       deps: deps()
     ]
   end
 
 
   defp description() do
-    "NIF Wrapper around the rust LLamaCPP client allowing elixir code to load/infer against gguf format models."
+    "NIF Wrapper around llama.cpp allowing elixir code to load/infer against gguf format models."
   end
 
-  defp rustler_crates do
-    [
-      erlang_llama_cpp_nif: [
-        path: "native/erlang_llama_cpp_nif",
-        mode: rustc_mode(Mix.env())
-      ]
-    ]
-  end
-  
-  defp rustc_mode(:prod), do: :release
-  defp rustc_mode(_), do: :debug
-  
+
+
   defp package() do
     [
       licenses: ["MIT"],
@@ -49,8 +42,7 @@ defmodule ExLLama.MixProject do
         project: "https://github.com/noizu-labs-ml/ex_llama",
         developer_github: "https://github.com/noizu"
       },
-      files: ~w(lib native priv mix.exs README.md CHANGELOG.md LICENSE*),
-      exclude_patterns: ["priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"]
+      files: ~w(lib c_src/ex_llama_nif.cpp c_src/test_llama_nif.cpp Makefile mix.exs README.md CHANGELOG.md LICENSE*)
     ]
   end
 
@@ -64,13 +56,13 @@ defmodule ExLLama.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.32.1", runtime: false},
-      {:ex_doc, "~> 0.28.3", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
+      {:elixir_make, "~> 0.9", runtime: false},
+      {:ex_doc, "~> 0.40", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:genai_core, "~> 0.2"},
+      {:genai_core, "~> 0.3"},
       {:finch, "~> 0.15", optional: true},
       {:elixir_uuid, "~> 1.2", optional: true},
-      {:shortuuid, "~> 3.0", optional: true},
+      {:shortuuid, "~> 4.0", optional: true},
       
       
       # {:dep_from_hexpm, "~> 0.3.0"},

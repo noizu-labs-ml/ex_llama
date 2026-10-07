@@ -49,6 +49,7 @@ defmodule ExLLama.ChatTemplate.OpenChat do
                          x = x
                              |> String.trim()
                              |> String.trim_trailing(eos_token)
+                             |> String.trim_trailing("<|end_of_turn|>")
                          x = GenAI.Message.assistant(x)
                          finish_reason = if (tokens < options[:max_tokens]), do: :stop, else: :max_tokens
                          %GenAI.ChatCompletion.Choice{index: index, message: x, finish_reason: finish_reason}
