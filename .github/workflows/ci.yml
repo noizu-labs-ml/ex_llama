@@ -1,0 +1,40 @@
+# ExLlama library CI: compile (warnings-as-errors) + test.
+# Versions track .tool-versions (elixir 1.19.5 / OTP 28.4; cmake 3.31.11 for native build deps).
+# No database dependency — no services required.
+
+name: Elixir CI
+
+on:
+  push:
+    branches: [ "develop", "main" ]
+  pull_request:
+    branches: [ "develop" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    name: Build and test
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Elixir
+      uses: erlef/setup-beam@61e01a43a562a89bfc54c7f9a378ff67b03e4a21 # v1.16.0
+      with:
+        elixir-version: '1.19.5' # from .tool-versions
+        otp-version: '28.4'      # from .tool-versions
+    - name: Restore dependencies cache
+      uses: actions/cache@v3
+      with:
+        path: deps
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-mix-
+    - name: Install dependencies
+      run: mix deps.get
+    - name: Compile
+      run: mix compile --warnings-as-errors
+    - name: Run tests
+      run: mix test
