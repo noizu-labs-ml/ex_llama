@@ -23,7 +23,7 @@ defmodule ExLLama.ChatTemplate.Llama3Instruct do
   ```
   """
 
-  # ⟦𓁟𓀴𓂝𓀭⟧ support_list :: auto-generated pointer for public function support_list
+  # <REMOVED UUID HERE> support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*llama.*3.*instruct.*$", 1}, {~r"^.*llama-3.*$", 1}]
   end
@@ -32,7 +32,7 @@ defmodule ExLLama.ChatTemplate.Llama3Instruct do
     "<|start_header_id|>#{message.role}<|end_header_id|>\n\n#{String.trim(message.content)}<|eot_id|>"
   end
 
-  # ⟦𓃦𓈘𓇹𓍛⟧ extract_response :: auto-generated pointer for public function extract_response
+  # <REMOVED UUID HERE> extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -55,7 +55,7 @@ defmodule ExLLama.ChatTemplate.Llama3Instruct do
     end
   end
 
-  # ⟦𓏦𓈷𓂠𓋥⟧ to_context :: auto-generated pointer for public function to_context
+  # <REMOVED UUID HERE> to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
       system_offset = if Enum.at(thread, 0)[:role] == :system, do: 1, else: 0
