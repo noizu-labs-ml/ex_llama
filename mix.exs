@@ -7,7 +7,7 @@ defmodule ExLLama.MixProject do
       name: "LLama CPP Nif Wrapper",
       description: description(),
       package: package(),
-      version: "0.2.1",
+      version: "0.3.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
 
@@ -59,7 +59,7 @@ defmodule ExLLama.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], optional: true, runtime: false}, # Documentation Provider
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:genai_core, "~> 0.3"},
+      {:genai_core, "~> 0.3.5"},
       {:finch, "~> 0.15", optional: true},
       {:elixir_uuid, "~> 1.2", optional: true},
       {:shortuuid, "~> 4.0", optional: true},
