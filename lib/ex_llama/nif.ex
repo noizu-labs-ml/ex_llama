@@ -6,6 +6,19 @@ defmodule ExLLama.Nif do
 
   @on_load :load_nif
 
+  # llama.cpp sentinel/enum constants for context defaults (v0.6.0 pin).
+  # Cited from the v0.6.0 interop audit — do not inline these values.
+  # -1 threads: llama.cpp's own thread default; clamps the auto-registered
+  #   Accelerate BLAS backend to serial cblas_sgemm on macOS (the proven-
+  #   clean arm; explicit positive counts corrupt multi-token prefill
+  #   there, and the Linux OpenMP path is also suspect).
+  @default_threads -1
+  @default_threads_batch -1
+  # -1 rope scaling: LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED = inherit GGUF
+  #   rope scaling (canonical, matches llama.cpp common/); explicit NONE
+  #   (0) breaks yarn/longrope/linear models by overriding their scaling.
+  @default_rope_scaling_type -1
+
   # ⟦𓂳𓌓𓊒𓈀⟧ load_nif :: auto-generated pointer for public function load_nif
   def load_nif do
     path = :filename.join(:code.priv_dir(:ex_llama), ~c"ex_llama_nif")
@@ -189,15 +202,17 @@ defmodule ExLLama.Nif do
       seed: 0xFFFFFFFF,
       n_ctx: 2048,
       n_batch: 512,
-      n_threads: 4,
-      n_threads_batch: 4,
-      rope_scaling_type: 0,
+      n_threads: @default_threads,
+      n_threads_batch: @default_threads_batch,
+      rope_scaling_type: @default_rope_scaling_type,
       rope_freq_base: 0.0,
       rope_freq_scale: 0.0,
-      yarn_ext_factor: 0.0,
-      yarn_attn_factor: 0.0,
-      yarn_beta_fast: 0.0,
-      yarn_beta_slow: 0.0,
+      # nil = omit: llama.cpp's own defaults are -1.0 sentinels (resolve from
+      # model hparams). 0.0 here would mean "disabled", overriding the model.
+      yarn_ext_factor: nil,
+      yarn_attn_factor: nil,
+      yarn_beta_fast: nil,
+      yarn_beta_slow: nil,
       yarn_orig_ctx: 0,
       # ggml type 1 = GGML_TYPE_F16 (type 0/F32 is not a valid KV-cache type;
       # see valid_kv_ggml_type in c_src/ex_llama_nif.cpp)

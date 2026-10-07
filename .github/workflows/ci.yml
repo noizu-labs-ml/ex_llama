@@ -43,6 +43,10 @@ jobs:
       # GGUFs are gitignored; fetched locally via init.sh. Mirror that in CI
       # so the model-dependent tests run (skipped re-download on cache hit).
       run: cd priv/models/local_llama/tiny_llama && bash init.sh
+    - name: CPU feature probe (AVX512-FP16)
+      # Audit discriminator: does the runner expose AVX512-FP16 (native F16
+      # math) where ggml's native-codegen path could misbehave?
+      run: echo "avx512_fp16 cores = $(grep -c avx512_fp16 /proc/cpuinfo || true)"
     - name: Compile
       run: mix compile --warnings-as-errors
     - name: Run tests
