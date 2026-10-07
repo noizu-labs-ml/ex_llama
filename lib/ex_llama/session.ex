@@ -5,6 +5,20 @@ defmodule ExLLama.Session do
     resource: nil
   ]
 
+  # Sessions can be created in one process and used from another (e.g. handed
+  # to a GenServer or Task). The struct is the durable seed carrier; the
+  # NIF-side bridges read a process-dictionary stash keyed by the context ref.
+  # (Re)populate the calling process's stash from the struct so completion,
+  # streaming, params and deep_copy see the seed regardless of which process
+  # created the session. 0xFFFFFFFF is llama.cpp's LLAMA_DEFAULT_SEED, so
+  # stashing it for never-seeded sessions is behaviourally a no-op.
+  defp ensure_seed(%__MODULE__{resource: ref, seed: seed}) when seed != nil do
+    unless Process.get({:ex_llama_seed, ref}) do
+      Process.put({:ex_llama_seed, ref}, seed)
+    end
+    :ok
+  end
+
   # ⟦𓍓𓎣𓉤𓅭⟧ default_options :: auto-generated pointer for public function default_options
   def default_options(), do: ExLLama.Nif.__session_nif_default_session_options__()
   # ⟦𓅡𓊽𓁵𓈶⟧ advance_context_with_tokens :: auto-generated pointer for public function advance_context_with_tokens
@@ -13,6 +27,7 @@ defmodule ExLLama.Session do
   def advance_context(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_advance_context__(session.resource, context)
   # ⟦𓁦𓍑𓎆𓁒⟧ start_completing_with :: auto-generated pointer for public function start_completing_with
   def start_completing_with(%__MODULE__{resource: _} = session, options) do
+    ensure_seed(session)
     max_tokens = options[:max_tokens] || 512
     pid = options[:pid] || self()
     # Capture context from process dict before spawning
@@ -24,11 +39,17 @@ defmodule ExLLama.Session do
     :ok
   end
   # ⟦𓏬𓋂𓅃𓊛⟧ completion :: auto-generated pointer for public function completion
-  def completion(%__MODULE__{resource: _} = session, max_tokens, stop), do: ExLLama.Nif.__session_nif_completion__(session.resource, max_tokens, stop)
+  def completion(%__MODULE__{resource: _} = session, max_tokens, stop) do
+    ensure_seed(session)
+    ExLLama.Nif.__session_nif_completion__(session.resource, max_tokens, stop)
+  end
   # ⟦𓐩𓁊𓏪𓎲⟧ model :: auto-generated pointer for public function model
   def model(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_nif_model__(session.resource)
   # ⟦𓁨𓄇𓇯𓃷⟧ params :: auto-generated pointer for public function params
-  def params(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_nif_params__(session.resource)
+  def params(%__MODULE__{resource: _} = session) do
+    ensure_seed(session)
+    ExLLama.Nif.__session_nif_params__(session.resource)
+  end
   # ⟦𓊋𓊚𓆶𓈑⟧ context_size :: auto-generated pointer for public function context_size
   def context_size(%__MODULE__{resource: _} = session), do: ExLLama.Nif.__session_nif_context_size__(session.resource)
   # ⟦𓃌𓍉𓍼𓊠⟧ context :: auto-generated pointer for public function context
@@ -41,6 +62,7 @@ defmodule ExLLama.Session do
   def set_context(%__MODULE__{resource: _} = session, context), do: ExLLama.Nif.__session_nif_set_context__(session.resource, context)
   # ⟦𓍛𓇖𓈜𓅉⟧ deep_copy :: auto-generated pointer for public function deep_copy
   def deep_copy(%__MODULE__{resource: _} = session) do
+    ensure_seed(session)
     with {:ok, copy} <- ExLLama.Nif.__session_deep_copy__(session.resource) do
       {:ok, put_in(copy, [Access.key(:model_name)], session.model_name)}
     end
