@@ -27,7 +27,7 @@ jobs:
         elixir-version: '1.19.5' # from .tool-versions
         otp-version: '28.4'      # from .tool-versions
     - name: Restore dependencies cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
@@ -35,7 +35,7 @@ jobs:
     - name: Install dependencies
       run: mix deps.get
     - name: Restore test model cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
         key: gguf-tinyllama-1.1b-chat-v1.0.Q4_K_M
