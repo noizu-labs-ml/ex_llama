@@ -189,8 +189,14 @@ defmodule ExLLama.Nif do
       seed: 0xFFFFFFFF,
       n_ctx: 2048,
       n_batch: 512,
-      n_threads: 4,
-      n_threads_batch: 4,
+      # nil = omit: NIF leaves llama.cpp's default thread count in place.
+      # Explicit thread counts corrupt multi-token prefill when the auto-
+      # registered Accelerate BLAS backend is present (macOS) and are the
+      # suspect for the v0.6.0 CI garbage via the Linux OpenMP path.
+      # (Note: on the v0.6.0 pin, llama.cpp's own default is
+      # GGML_DEFAULT_N_THREADS == 4 — see llama-context.cpp.)
+      n_threads: nil,
+      n_threads_batch: nil,
       rope_scaling_type: 0,
       rope_freq_base: 0.0,
       rope_freq_scale: 0.0,
