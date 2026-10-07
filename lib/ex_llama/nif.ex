@@ -195,16 +195,18 @@ defmodule ExLLama.Nif do
       # corrupt multi-token prefill there; Linux OpenMP path also suspect).
       n_threads: -1,
       n_threads_batch: -1,
-      # ggml/llama enum: LLAMA_ROPE_SCALING_TYPE_NONE == 0 on the v0.6.0 pin
-      # (UNSPECIFIED = -1, LINEAR = 1). Explicit none, matching the old-pin
-      # semantics; do not "fix" this to 1 — that is LINEAR.
-      rope_scaling_type: 0,
+      # -1 = LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED = inherit GGUF rope scaling
+      # (canonical, matches llama.cpp common/); explicit NONE (0) breaks
+      # yarn/longrope/linear models by overriding their trained scaling.
+      rope_scaling_type: -1,
       rope_freq_base: 0.0,
       rope_freq_scale: 0.0,
-      yarn_ext_factor: 0.0,
-      yarn_attn_factor: 0.0,
-      yarn_beta_fast: 0.0,
-      yarn_beta_slow: 0.0,
+      # nil = omit: llama.cpp's own defaults are -1.0 sentinels (resolve from
+      # model hparams). 0.0 here would mean "disabled", overriding the model.
+      yarn_ext_factor: nil,
+      yarn_attn_factor: nil,
+      yarn_beta_fast: nil,
+      yarn_beta_slow: nil,
       yarn_orig_ctx: 0,
       # ggml type 1 = GGML_TYPE_F16 (type 0/F32 is not a valid KV-cache type;
       # see valid_kv_ggml_type in c_src/ex_llama_nif.cpp)
