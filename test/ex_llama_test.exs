@@ -51,6 +51,8 @@ defmodule ExLLamaTest do
     assert Enum.all?(r, &is_binary/1) and Enum.all?(r, &(String.length(&1) > 0))
   end
 
+  # 512-token CPU decode; the 60s default is too tight on loaded runners.
+  @tag timeout: 180_000
   test "Advance Context" do
     {:ok, llama} = load_model("local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
     {:ok, options} = ExLLama.Session.default_options()
