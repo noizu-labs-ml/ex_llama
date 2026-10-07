@@ -6,6 +6,19 @@ defmodule ExLLama.Nif do
 
   @on_load :load_nif
 
+  # llama.cpp sentinel/enum constants for context defaults (v0.6.0 pin).
+  # Cited from the v0.6.0 interop audit — do not inline these values.
+  # -1 threads: llama.cpp's own thread default; clamps the auto-registered
+  #   Accelerate BLAS backend to serial cblas_sgemm on macOS (the proven-
+  #   clean arm; explicit positive counts corrupt multi-token prefill
+  #   there, and the Linux OpenMP path is also suspect).
+  @default_threads -1
+  @default_threads_batch -1
+  # -1 rope scaling: LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED = inherit GGUF
+  #   rope scaling (canonical, matches llama.cpp common/); explicit NONE
+  #   (0) breaks yarn/longrope/linear models by overriding their scaling.
+  @default_rope_scaling_type -1
+
   # ⟦𓂳𓌓𓊒𓈀⟧ load_nif :: auto-generated pointer for public function load_nif
   def load_nif do
     path = :filename.join(:code.priv_dir(:ex_llama), ~c"ex_llama_nif")
@@ -189,16 +202,9 @@ defmodule ExLLama.Nif do
       seed: 0xFFFFFFFF,
       n_ctx: 2048,
       n_batch: 512,
-      # -1 = llama.cpp's own thread default; -1 clamps the auto-registered
-      # Accelerate BLAS backend to serial cblas_sgemm on macOS, the proven-
-      # clean arm of the v0.6.0 interop audit (explicit positive counts
-      # corrupt multi-token prefill there; Linux OpenMP path also suspect).
-      n_threads: -1,
-      n_threads_batch: -1,
-      # -1 = LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED = inherit GGUF rope scaling
-      # (canonical, matches llama.cpp common/); explicit NONE (0) breaks
-      # yarn/longrope/linear models by overriding their trained scaling.
-      rope_scaling_type: -1,
+      n_threads: @default_threads,
+      n_threads_batch: @default_threads_batch,
+      rope_scaling_type: @default_rope_scaling_type,
       rope_freq_base: 0.0,
       rope_freq_scale: 0.0,
       # nil = omit: llama.cpp's own defaults are -1.0 sentinels (resolve from
