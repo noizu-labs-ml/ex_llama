@@ -193,6 +193,22 @@ static bool valid_kv_ggml_type(int t) {
     }
 }
 
+// Feed prompt tokens in n_batch-sized chunks. A single batch larger than
+// n_batch trips GGML_ASSERT(n_tokens_all <= cparams.n_batch) inside
+// llama_decode and aborts the VM. Returns false on decode failure.
+static bool decode_prompt_chunks(llama_context *ctx, std::vector<llama_token> &tokens, const char **err) {
+    const uint32_t n_batch = llama_n_batch(ctx);
+    for (size_t i = 0; i < tokens.size(); i += n_batch) {
+        int32_t n = (int32_t)std::min((size_t)n_batch, tokens.size() - i);
+        llama_batch batch = llama_batch_get_one(tokens.data() + i, n);
+        if (llama_decode(ctx, batch) != 0) {
+            if (err) *err = "failed to decode prompt";
+            return false;
+        }
+    }
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // NIF: load_model(path, opts_map) -> {:ok, model_ref} | {:error, reason}
 // ---------------------------------------------------------------------------
@@ -546,9 +562,9 @@ nif_completion(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     llama_memory_clear(llama_get_memory(cres->ctx), true);
 
-    llama_batch batch = llama_batch_get_one(tokens.data(), tokens.size());
-    if (llama_decode(cres->ctx, batch) != 0)
-        return make_error(env, "failed to decode prompt");
+    const char *decode_err = nullptr;
+    if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err))
+        return make_error(env, decode_err);
 
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler *sampler = llama_sampler_chain_init(sparams);
@@ -666,10 +682,10 @@ nif_streaming_completion(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         auto tokens = tokenize(vocab, prompt, true);
 
         llama_memory_clear(llama_get_memory(cres->ctx), true);
-        llama_batch batch = llama_batch_get_one(tokens.data(), tokens.size());
+        const char *decode_err = nullptr;
 
-        if (llama_decode(cres->ctx, batch) != 0) {
-            send_error("failed to decode prompt");
+        if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err)) {
+            send_error(decode_err);
             enif_free_env(msg_env);
             enif_release_resource(cres);
             return;
@@ -736,10 +752,9 @@ nif_embeddings(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     auto tokens = tokenize(vocab, text, true);
 
     llama_memory_clear(llama_get_memory(cres->ctx), true);
-    llama_batch batch = llama_batch_get_one(tokens.data(), tokens.size());
-
-    if (llama_decode(cres->ctx, batch) != 0)
-        return make_error(env, "decode failed");
+    const char *decode_err = nullptr;
+    if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err))
+        return make_error(env, decode_err);
 
     float *embd = llama_get_embeddings(cres->ctx);
     if (!embd)
