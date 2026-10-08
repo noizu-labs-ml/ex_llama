@@ -22,7 +22,7 @@ defmodule ExLLama.ChatTemplate.Phi3 do
   ```
   """
 
-  # ⟦𓍧𓅷𓉗𓉬⟧ support_list :: auto-generated pointer for public function support_list
+  # <REMOVED UUID HERE> support_list :: auto-generated pointer for public function support_list
   def support_list() do
     [{~r"^.*phi.*3.*$", 1}, {~r"^.*phi-3[^-].*$", 1}]
   end
@@ -31,7 +31,7 @@ defmodule ExLLama.ChatTemplate.Phi3 do
     "<|#{message.role}|>\n#{String.trim(message.content)}<|end|>\n"
   end
 
-  # ⟦𓁀𓏊𓎝𓁈⟧ extract_response :: auto-generated pointer for public function extract_response
+  # <REMOVED UUID HERE> extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
       choices = responses
@@ -55,7 +55,7 @@ defmodule ExLLama.ChatTemplate.Phi3 do
     end
   end
 
-  # ⟦𓀅𓉄𓊁𓐔⟧ to_context :: auto-generated pointer for public function to_context
+  # <REMOVED UUID HERE> to_context :: auto-generated pointer for public function to_context
   def to_context(thread, _model, options) do
     # Note: Unlike Phi3Small, this template doesn't include the BOS token
     system_offset = if Enum.at(thread, 0)[:role] == :system, do: 1, else: 0
