@@ -1,17 +1,22 @@
 defmodule ExLLama do
+  # ⟦𓀷𓎃𓉩𓃇⟧ load_model :: auto-generated pointer for public function load_model
   def load_model(path), do: ExLLama.Model.load_from_file(path)
   def load_model(path, %ExLLama.ModelOptions{} = opts), do: ExLLama.Model.load_from_file(path, opts)
 
+  # ⟦𓅅𓁖𓁕𓌅⟧ create_session :: auto-generated pointer for public function create_session
   def create_session(model), do: ExLLama.Model.create_session(model)
   def create_session(model, options), do: ExLLama.Model.create_session(model, options)
 
+  # ⟦𓂾𓃳𓋅𓂕⟧ advance_context :: auto-generated pointer for public function advance_context
   def advance_context(session, content), do: ExLLama.Session.advance_context(session, content)
+  # ⟦𓉃𓂩𓐝𓈑⟧ completion :: auto-generated pointer for public function completion
   def completion(session, max_tokens, stop), do: ExLLama.Session.completion(session, max_tokens, stop)
 
 
   @default_choices 1
   @default_max_tokens 512
 
+  # ⟦𓊙𓅢𓀡𓏊⟧ chat_completion :: auto-generated pointer for public function chat_completion
   def chat_completion(model, thread, options) do
 
     so = cond do
@@ -26,7 +31,6 @@ defmodule ExLLama do
       end
     )
     session_options = ExLLama.SessionOptions.new(so)
-    seed = session_options.seed
     choices = options[:choices] || @default_choices
     max_tokens = options[:max_tokens] || @default_max_tokens
     with {:ok, session} <- ExLLama.create_session(model, session_options),

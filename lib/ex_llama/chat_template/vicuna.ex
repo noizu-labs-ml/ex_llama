@@ -30,17 +30,19 @@ defmodule ExLLama.ChatTemplate.Vicuna do
   """
 
 
+  # ⟦𓌶𓄆𓀶𓍨⟧ support_list :: auto-generated pointer for public function support_list
   def support_list() do
     []
   end
 
-  defp format_line(message = %{role: :system}, eos_token) do
+  defp format_line(message = %{role: :system}, _eos_token) do
     "#{String.trim(message.content)}\n\n"
   end
   defp format_line(message, eos_token) do
-    "#{message.role |> String.upcase()}: #{String.trim(message.content)}#{eos_token}\n"
+    "#{message.role |> to_string() |> String.upcase()}: #{String.trim(message.content)}#{eos_token}\n"
   end
 
+  # ⟦𓌗𓃇𓀿𓂗⟧ extract_response :: auto-generated pointer for public function extract_response
   def extract_response(responses, model, options) do
     with {:ok, model_name} <- ExLLama.Model.__model_name__(model),
          {:ok, eos_token} <- ExLLama.Model.__eos__(model) do
@@ -64,6 +66,7 @@ defmodule ExLLama.ChatTemplate.Vicuna do
     end
   end
 
+  # ⟦𓌤𓎵𓍔𓆟⟧ to_context :: auto-generated pointer for public function to_context
   def to_context(thread, model, options) do
     with {:ok, eos_token} <- ExLLama.Model.__eos__(model),
          {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
@@ -72,31 +75,31 @@ defmodule ExLLama.ChatTemplate.Vicuna do
               |> Enum.with_index()
               |> Enum.map(
                    fn
-                     {msg = %{role: :system = role, content: content}, 0} ->
+                     {msg = %{role: :system}, 0} ->
                        format_line(msg, eos_token)
-                     {msg = %{role: :system = role, content: content}, index} ->
+                     {msg = %{role: :system}, index} ->
                        unless options[:strict] == false do
                          raise ExLLama.ChatTemplate.Exception, message: "Only the first message may be from system. Use a different handler or pass `strict: false` to allow", handler: __MODULE__, entry: msg, row: index
                        end
                        format_line(msg, eos_token)
 
-                     {msg =%{role: :assistant = role, content: content}, index} ->
+                     {msg =%{role: :assistant, content: _content}, index} ->
                        unless options[:strict] == false or index <= (1 + system_message_offset) do
-                         if Enum.at(thread, index - 2)[:role] != role do
+                         if Enum.at(thread, index - 2)[:role] != :assistant do
                            raise ExLLama.ChatTemplate.Exception, message: "Conversation roles must alternate user/assistant/user/assistant/...", handler: __MODULE__, entry: msg, row: index
                          end
                        end
                        format_line(msg, eos_token)
 
-                     {msg = %{role: :user = role, content: content}, index} ->
+                     {msg = %{role: :user, content: _content}, index} ->
                        unless options[:strict] == false or index <= (2 + system_message_offset) do
-                         if Enum.at(thread, index - 2)[:role] != role do
+                         if Enum.at(thread, index - 2)[:role] != :user do
                            raise ExLLama.ChatTemplate.Exception, message: "Conversation roles must alternate user/assistant/user/assistant/...", handler: __MODULE__, entry: msg, row: index
                          end
                        end
                        format_line(msg, eos_token)
 
-                     {msg = %{role: role, content: content}, index} ->
+                     {msg = %{role: _role, content: _content}, index} ->
                        unless options[:strict] == false or options[:expanded_roles] do
                          raise ExLLama.ChatTemplate.Exception, message: "Only the first user,assistant,system roles are supported. Use a different handler or pass `strict: false` to allow", handler: __MODULE__, entry: msg, row: index
                        end
