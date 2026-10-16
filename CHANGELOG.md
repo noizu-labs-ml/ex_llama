@@ -1,6 +1,13 @@
 Change Log
 =====
 
+## Unreleased
+
+- 2026-10-17: feat(classifier): native text Jev-Omni inference, validated FP32
+  decision heads, Core classifier mapping and reproducible reference parity;
+  [PR #11](https://github.com/noizu-labs-ml/ex_llama/pull/11) opened → main
+  (pending review; not merged).
+
 ## 0.4.0
 Refresh llama.cpp submodule pin from tag `b8322` to stable release
 `v0.6.0` (2026-10-05), and expose the new/previously-unexposed model-loading
