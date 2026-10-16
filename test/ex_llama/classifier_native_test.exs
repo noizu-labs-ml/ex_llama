@@ -34,7 +34,10 @@ defmodule ExLLama.ClassifierNativeTest do
   test "last-token features agree across prompt chunks and independent contexts", context do
     prompt = "<s>" <> String.duplicate("The quick brown fox jumps over the lazy dog. ", 3)
     small = %{n_ctx: 256, n_batch: 16, n_ubatch: 16}
-    large = %{n_ctx: 256, n_batch: 128, n_ubatch: 128}
+    # Vary our logical decode chunks while keeping the physical compute batch
+    # fixed: quantized CPU kernels can produce different rounding at different
+    # n_ubatch sizes. That is separate from chunk positions/final-row selection.
+    large = %{n_ctx: 256, n_batch: 128, n_ubatch: 16}
 
     assert {:ok, chunked} = Nif.classifier_last_hidden(context.model.resource, prompt, small)
     assert {:ok, whole} = Nif.classifier_last_hidden(context.model.resource, prompt, large)
