@@ -52,3 +52,7 @@ ex_llama-*.tar
 
 # Built NIF artifacts (built locally by elixir_make, never shipped from git)
 /priv/*.so
+/priv/test_llama_nif
+
+# Python exporter cache
+/scripts/__pycache__/
