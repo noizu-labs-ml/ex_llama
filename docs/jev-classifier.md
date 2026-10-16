@@ -99,8 +99,8 @@ and GPU backend build. The Makefile's default macOS build uses Metal. Keep
 `deps` and `_build` in the canonical ExLLama checkout with absolute symlinks
 from the feature worktree; resolve dependencies using the feature's `mix.exs`.
 The default Core dependency is pinned to
-`1ccad392d252811f652da41624f16b83ac237912` (classifier API 0.4, including
-the required YAML aggregation serializer). Set
+merged Core commit `a98208599ab003f6ef1cc8ffdb01e91d01d5331b` (classifier API 0.4,
+including required JSON and YAML serializers). Set
 `GENAI_CORE_PATH` only when developing against another local Core checkout.
 Resolve dependencies using this feature's C++ dependency metadata.
 

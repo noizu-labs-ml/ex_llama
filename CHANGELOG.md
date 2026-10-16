@@ -6,7 +6,7 @@ Change Log
 - 2026-10-17: feat(classifier): native text Jev-Omni inference, validated FP32
   decision heads, Core classifier mapping, reproducible reference parity and
   a CPU-portable logical-chunk regression that fixes the physical batch size;
-  pins Core's required YAML serializer dependency;
+  pins merged Core with required JSON/YAML runtime serializers;
   [PR #11](https://github.com/noizu-labs-ml/ex_llama/pull/11) opened → main
   (pending review; not merged).
 
