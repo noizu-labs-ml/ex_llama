@@ -10,15 +10,24 @@
 #include <cmath>
 #include <regex>
 #include <stdexcept>
+#include <memory>
+#include "jev_head.h"
 
 // ---------------------------------------------------------------------------
 // Resource types
 // ---------------------------------------------------------------------------
 static ErlNifResourceType *MODEL_RES_TYPE = nullptr;
 static ErlNifResourceType *CTX_RES_TYPE   = nullptr;
+static ErlNifResourceType *HEAD_RES_TYPE  = nullptr;
+
+struct HeadRes { ex_llama::JevHead head; };
+static void head_res_dtor(ErlNifEnv *, void *obj) {
+    static_cast<HeadRes *>(obj)->~HeadRes();
+}
 
 struct ModelRes {
     llama_model *model;
+    std::mutex classifier_mu;
 };
 
 struct CtxRes {
@@ -30,6 +39,7 @@ struct CtxRes {
 static void model_res_dtor(ErlNifEnv *, void *obj) {
     auto *r = static_cast<ModelRes *>(obj);
     if (r->model) llama_model_free(r->model);
+    r->~ModelRes();
 }
 
 static void ctx_res_dtor(ErlNifEnv *, void *obj) {
@@ -298,6 +308,8 @@ nif_load_model(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     auto *res = static_cast<ModelRes *>(
         enif_alloc_resource(MODEL_RES_TYPE, sizeof(ModelRes)));
+    if (!res) { llama_model_free(model); return make_error(env, "model resource allocation failed"); }
+    new (res) ModelRes();
     res->model = model;
 
     ERL_NIF_TERM term = enif_make_resource(env, res);
@@ -500,6 +512,8 @@ nif_model_info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
                       enif_make_int(env, llama_vocab_n_tokens(vocab)), &map);
     enif_make_map_put(env, map, make_atom(env, "n_embd"),
                       enif_make_int(env, llama_model_n_embd(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_embd_out"),
+                      enif_make_int(env, llama_model_n_embd_out(mres->model)), &map);
     enif_make_map_put(env, map, make_atom(env, "n_ctx_train"),
                       enif_make_int(env, llama_model_n_ctx_train(mres->model)), &map);
     enif_make_map_put(env, map, make_atom(env, "n_layer"),
@@ -883,7 +897,110 @@ nif_chat_apply_template(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 // ---------------------------------------------------------------------------
 // NIF table
 // ---------------------------------------------------------------------------
+static ERL_NIF_TERM nif_classifier_load_head(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    std::string path;
+    if (!get_string(env, argv[0], path)) return make_error(env, "bad head path");
+    try {
+        auto head = ex_llama::JevHead::load(path);
+        auto *res = static_cast<HeadRes *>(enif_alloc_resource(HEAD_RES_TYPE, sizeof(HeadRes)));
+        if (!res) return make_error(env, "head resource allocation failed");
+        new (res) HeadRes{std::move(head)};
+        ERL_NIF_TERM term = enif_make_resource(env, res);
+        enif_release_resource(res);
+        return make_ok(env, term);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
+static ERL_NIF_TERM nif_classifier_head_info(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    HeadRes *res;
+    if (!enif_get_resource(env, argv[0], HEAD_RES_TYPE, (void **)&res))
+        return make_error(env, "bad head reference");
+    ERL_NIF_TERM map = enif_make_new_map(env);
+    enif_make_map_put(env, map, make_atom(env, "hidden"), enif_make_uint(env, res->head.hidden), &map);
+    enif_make_map_put(env, map, make_atom(env, "classes"), enif_make_uint(env, res->head.classes), &map);
+    return make_ok(env, map);
+}
+
+static ERL_NIF_TERM nif_classifier_head_probabilities(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    HeadRes *res;
+    unsigned int length, count;
+    if (!enif_get_resource(env, argv[0], HEAD_RES_TYPE, (void **)&res))
+        return make_error(env, "bad head reference");
+    if (!enif_get_list_length(env, argv[1], &length) || length != res->head.hidden ||
+        !enif_get_uint(env, argv[2], &count)) return make_error(env, "invalid head inference arguments");
+    try {
+        std::vector<float> features(length);
+        ERL_NIF_TERM value, tail = argv[1];
+        for (unsigned int i = 0; i < length; ++i) {
+            double number; int integer;
+            if (!enif_get_list_cell(env, tail, &value, &tail)) return make_error(env, "invalid hidden state");
+            if (!enif_get_double(env, value, &number)) {
+                if (!enif_get_int(env, value, &integer)) return make_error(env, "invalid hidden state number");
+                number = integer;
+            }
+            features[i] = static_cast<float>(number);
+        }
+        auto probabilities = res->head.probabilities(features, count);
+        ERL_NIF_TERM result = enif_make_list(env, 0);
+        for (auto it = probabilities.rbegin(); it != probabilities.rend(); ++it)
+            result = enif_make_list_cell(env, enif_make_double(env, *it), result);
+        return make_ok(env, result);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
+// A private, call-local context avoids corrupting a caller's generation/KV state.
+// The argv model resource remains alive until this dirty NIF returns.
+static ERL_NIF_TERM nif_classifier_last_hidden(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    ModelRes *res; std::string prompt;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&res) ||
+        !get_string(env, argv[1], prompt) || !enif_is_map(env, argv[2]))
+        return make_error(env, "invalid classifier prompt arguments");
+    try {
+        std::lock_guard<std::mutex> lock(res->classifier_mu);
+        // Prompt already includes BOS and generation-prefix special tokens.
+        auto tokens = tokenize(llama_model_get_vocab(res->model), prompt, false);
+        if (tokens.empty()) return make_error(env, "empty classifier prompt");
+        llama_context_params params = llama_context_default_params();
+        params.embeddings = true;
+        params.pooling_type = LLAMA_POOLING_TYPE_NONE;
+        params.n_ctx = 4096; params.n_batch = 512; params.n_ubatch = 512;
+        params.n_threads = -1; params.n_threads_batch = -1;
+        const char *keys[] = {"n_ctx", "n_batch", "n_ubatch"};
+        uint32_t *values[] = {&params.n_ctx, &params.n_batch, &params.n_ubatch};
+        for (int i = 0; i < 3; ++i) {
+            ERL_NIF_TERM value; unsigned int number;
+            if (enif_get_map_value(env, argv[2], make_atom(env, keys[i]), &value)) {
+                if (!enif_get_uint(env, value, &number) || !number)
+                    return make_error(env, "classifier context fields must be positive integers");
+                *values[i] = number;
+            }
+        }
+        if (params.n_ctx < tokens.size() || params.n_ctx > 262144 || !params.n_batch ||
+            params.n_batch > params.n_ctx || !params.n_ubatch || params.n_ubatch > params.n_batch)
+            return make_error(env, "classifier context limits invalid or prompt exceeds n_ctx");
+        std::unique_ptr<llama_context, decltype(&llama_free)> context(
+            llama_init_from_model(res->model, params), llama_free);
+        if (!context) return make_error(env, "classifier context creation failed");
+        const char *error = nullptr;
+        if (!decode_prompt_chunks(context.get(), tokens, &error)) return make_error(env, error);
+        const float *features = llama_get_embeddings_ith(context.get(), -1);
+        if (!features) return make_error(env, "final-token hidden state unavailable");
+        const int hidden = llama_model_n_embd_out(res->model);
+        if (hidden <= 0 || hidden > 65536) return make_error(env, "invalid classifier output hidden dimension");
+        ERL_NIF_TERM result = enif_make_list(env, 0);
+        for (int i = hidden - 1; i >= 0; --i) {
+            if (!std::isfinite(features[i])) return make_error(env, "non-finite final-token hidden state");
+            result = enif_make_list_cell(env, enif_make_double(env, features[i]), result);
+        }
+        return make_ok(env, result);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
 static ErlNifFunc nif_funcs[] = {
+    {"classifier_load_head", 1, nif_classifier_load_head, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"classifier_head_info", 1, nif_classifier_head_info, 0},
+    {"classifier_head_probabilities", 3, nif_classifier_head_probabilities, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"classifier_last_hidden", 3, nif_classifier_last_hidden, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     // model
     {"load_model",            1, nif_load_model,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"load_model",            2, nif_load_model,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
@@ -931,6 +1048,10 @@ static int on_load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
     CTX_RES_TYPE = enif_open_resource_type(
         env, nullptr, "ExLLamaCtx", ctx_res_dtor,
         ERL_NIF_RT_CREATE, nullptr);
+    HEAD_RES_TYPE = enif_open_resource_type(
+        env, nullptr, "ExLLamaDecisionHead", head_res_dtor,
+        ERL_NIF_RT_CREATE, nullptr);
+    if (!MODEL_RES_TYPE || !CTX_RES_TYPE || !HEAD_RES_TYPE) return -1;
 
     llama_log_set(quiet_log, nullptr);
 

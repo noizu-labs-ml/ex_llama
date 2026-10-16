@@ -1,7 +1,22 @@
 defmodule ExLLama do
+  @doc "Load a GGUF Jev backbone and its exported FP32 decision head."
+  defdelegate load_classifier(model_path, head_path, options \\ []),
+    to: ExLLama.Classifier,
+    as: :load
+
+  @doc "Execute a validated Core classifier request with a loaded local classifier."
+  def classify(classifier, request, options \\ []) do
+    GenAI.classify(
+      request,
+      Keyword.merge(options, provider: ExLLama.Classifier, classifier: classifier)
+    )
+  end
+
   # ⟦𓀷𓎃𓉩𓃇⟧ load_model :: auto-generated pointer for public function load_model
   def load_model(path), do: ExLLama.Model.load_from_file(path)
-  def load_model(path, %ExLLama.ModelOptions{} = opts), do: ExLLama.Model.load_from_file(path, opts)
+
+  def load_model(path, %ExLLama.ModelOptions{} = opts),
+    do: ExLLama.Model.load_from_file(path, opts)
 
   # ⟦𓅅𓁖𓁕𓌅⟧ create_session :: auto-generated pointer for public function create_session
   def create_session(model), do: ExLLama.Model.create_session(model)
@@ -10,49 +25,55 @@ defmodule ExLLama do
   # ⟦𓂾𓃳𓋅𓂕⟧ advance_context :: auto-generated pointer for public function advance_context
   def advance_context(session, content), do: ExLLama.Session.advance_context(session, content)
   # ⟦𓉃𓂩𓐝𓈑⟧ completion :: auto-generated pointer for public function completion
-  def completion(session, max_tokens, stop), do: ExLLama.Session.completion(session, max_tokens, stop)
-
+  def completion(session, max_tokens, stop),
+    do: ExLLama.Session.completion(session, max_tokens, stop)
 
   @default_choices 1
   @default_max_tokens 512
 
   # ⟦𓊙𓅢𓀡𓏊⟧ chat_completion :: auto-generated pointer for public function chat_completion
   def chat_completion(model, thread, options) do
+    so =
+      cond do
+        x = options[:session_options] -> put_in(x, [:seed], options[:seed])
+        x = options[:seed] -> [seed: x]
+        :else -> nil
+      end
 
-    so = cond do
-      x = options[:session_options] -> put_in(x, [:seed], options[:seed])
-      x = options[:seed] -> [seed: x]
-      :else -> nil
-    end
-    options = update_in(options || [], [:add_generation_prompt],
-      fn
+    options =
+      update_in(options || [], [:add_generation_prompt], fn
         x when is_nil(x) -> true
         x -> x
-      end
-    )
+      end)
+
     session_options = ExLLama.SessionOptions.new(so)
     choices = options[:choices] || @default_choices
     max_tokens = options[:max_tokens] || @default_max_tokens
+
     with {:ok, session} <- ExLLama.create_session(model, session_options),
          {:ok, thread_context} <- ExLLama.ChatTemplate.to_context(thread, model, options),
          {:ok, _} <- ExLLama.Session.set_context(session, thread_context),
          {:ok, prompt_tokens} = ExLLama.Session.context_size(session) do
-      choices = Enum.map(1..choices,
-                  fn(_) ->
-                    with {:ok, %{content: result, token_length: l}} <- ExLLama.Session.completion(session, max_tokens, nil) do
-                      {:ok, {l, result}}
-                    end
-                  end
-                )
-                |> Enum.filter(
-                     fn
-                       {:ok, _} -> true
-                       _ -> false
-                     end)
-                |> Enum.map(fn {:ok, x} -> x end)
+      choices =
+        Enum.map(
+          1..choices,
+          fn _ ->
+            with {:ok, %{content: result, token_length: l}} <-
+                   ExLLama.Session.completion(session, max_tokens, nil) do
+              {:ok, {l, result}}
+            end
+          end
+        )
+        |> Enum.filter(fn
+          {:ok, _} -> true
+          _ -> false
+        end)
+        |> Enum.map(fn {:ok, x} -> x end)
 
-      options = (options || [])
-                |> put_in([:prompt_tokens], prompt_tokens)
+      options =
+        (options || [])
+        |> put_in([:prompt_tokens], prompt_tokens)
+
       ExLLama.ChatTemplate.extract_response(choices, model, options)
     end
   end
