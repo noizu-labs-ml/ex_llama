@@ -84,7 +84,7 @@ defmodule ExLLama.MixProject do
       nil ->
         {:genai_core,
          git: "https://github.com/noizu-labs-ml/genai-core.git",
-         ref: "00c75545b83b7e02005ca70a3c9969d51b516d65"}
+         ref: "1ccad392d252811f652da41624f16b83ac237912"}
 
       path ->
         {:genai_core, path: path, override: true}
