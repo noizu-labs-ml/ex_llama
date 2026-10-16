@@ -6,9 +6,9 @@ name: Elixir CI
 
 on:
   push:
-    branches: ["develop", "main", stage]
+    branches: ["develop", "stage", "main"]
   pull_request:
-    branches: ["develop", stage]
+    branches: ["develop", "stage", "main"]
 
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: priv/models/local_llama/tiny_llama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
-        key: gguf-tinyllama-1.1b-chat-v1.0.Q4_K_M
+        key: gguf-tinyllama-52e7645ba7c309695bec7ac98f4f005b139cf465-9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0
     - name: Download test model
       # GGUFs are gitignored; fetched locally via init.sh. Mirror that in CI
       # so the model-dependent tests run (skipped re-download on cache hit).

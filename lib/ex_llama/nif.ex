@@ -26,12 +26,21 @@ defmodule ExLLama.Nif do
   end
 
   # ---- Raw NIF functions (loaded from C) ----
+  def classifier_load_head(_path), do: :erlang.nif_error(:nif_not_loaded)
+  def classifier_head_info(_head), do: :erlang.nif_error(:nif_not_loaded)
+
+  def classifier_head_probabilities(_head, _features, _count),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  def classifier_last_hidden(_model, _prompt, _options), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓇄𓆵𓀐𓋰⟧ load_model :: auto-generated pointer for public function load_model
   def load_model(_path), do: :erlang.nif_error(:nif_not_loaded)
   def load_model(_path, _opts), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓎫𓈓𓇩𓐣⟧ create_context :: auto-generated pointer for public function create_context
   def create_context(_model, _opts), do: :erlang.nif_error(:nif_not_loaded)
   def create_context(_model), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓆆𓈯𓃸𓌓⟧ context_deep_copy :: auto-generated pointer for public function context_deep_copy
   def context_deep_copy(_ctx), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓈤𓏂𓄬𓃓⟧ tokenize :: auto-generated pointer for public function tokenize
@@ -39,6 +48,7 @@ defmodule ExLLama.Nif do
   def tokenize(_model, _text, _add_special), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓎞𓇜𓍃𓍪⟧ detokenize :: auto-generated pointer for public function detokenize
   def detokenize(_model, _tokens), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓎾𓈞𓈜𓋬⟧ token_to_piece :: auto-generated pointer for public function token_to_piece
   def token_to_piece(_model, _token), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓋩𓄬𓅯𓂄⟧ vocab_bos :: auto-generated pointer for public function vocab_bos
@@ -49,10 +59,13 @@ defmodule ExLLama.Nif do
   def vocab_eot(_model), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓍧𓊠𓀀𓄾⟧ vocab_nl :: auto-generated pointer for public function vocab_nl
   def vocab_nl(_model), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓆯𓍘𓅻𓏺⟧ vocab_fim_pre :: auto-generated pointer for public function vocab_fim_pre
   def vocab_fim_pre(_model), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓋤𓏰𓇧𓊽⟧ vocab_fim_mid :: auto-generated pointer for public function vocab_fim_mid
   def vocab_fim_mid(_model), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓐊𓆥𓈋𓄤⟧ vocab_fim_suf :: auto-generated pointer for public function vocab_fim_suf
   def vocab_fim_suf(_model), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓇨𓇲𓆂𓅶⟧ model_info :: auto-generated pointer for public function model_info
@@ -60,11 +73,13 @@ defmodule ExLLama.Nif do
   # ⟦𓎴𓌴𓉤𓉚⟧ completion :: auto-generated pointer for public function completion
   def completion(_ctx, _prompt), do: :erlang.nif_error(:nif_not_loaded)
   def completion(_ctx, _prompt, _opts), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓅂𓆋𓏛𓋠⟧ streaming_completion :: auto-generated pointer for public function streaming_completion
   def streaming_completion(_ctx, _prompt, _pid), do: :erlang.nif_error(:nif_not_loaded)
   def streaming_completion(_ctx, _prompt, _pid, _opts), do: :erlang.nif_error(:nif_not_loaded)
   # ⟦𓄉𓐈𓇓𓁝⟧ embeddings :: auto-generated pointer for public function embeddings
   def embeddings(_ctx, _text), do: :erlang.nif_error(:nif_not_loaded)
+
   # ⟦𓉰𓇋𓂗𓍫⟧ chat_apply_template :: auto-generated pointer for public function chat_apply_template
   def chat_apply_template(_model, _messages), do: :erlang.nif_error(:nif_not_loaded)
   def chat_apply_template(_model, _messages, _add_gen), do: :erlang.nif_error(:nif_not_loaded)
@@ -77,27 +92,37 @@ defmodule ExLLama.Nif do
     # load_mode goes through resolve_load_mode so the deprecated
     # use_mmap/use_mlock struct fields (direct-struct callers) still apply.
     bool_keys = [:vocab_only, :check_tensors, :use_extra_bufts, :no_host, :load_mtp]
+
     nif_opts =
-      %{n_gpu_layers: opts.n_gpu_layers || 0, load_mode: ExLLama.ModelOptions.resolve_load_mode(opts) || "auto"}
+      %{
+        n_gpu_layers: opts.n_gpu_layers || 0,
+        load_mode: ExLLama.ModelOptions.resolve_load_mode(opts) || "auto"
+      }
       |> Map.merge(Map.new(for k <- bool_keys, v = Map.get(opts, k), v != nil, do: {k, v}))
+
     nif_opts =
       nif_opts
       |> maybe_put(:split_mode, opts.split_mode)
       |> maybe_put(:main_gpu, opts.main_gpu)
       |> maybe_put(:lazy_mode, opts.lazy_mode)
+
     case load_model(path, nif_opts) do
       {:ok, ref} ->
         {:ok, bos} = vocab_bos(ref)
         {:ok, eos} = vocab_eos(ref)
         {:ok, bos_piece} = token_to_piece(ref, bos)
         {:ok, eos_piece} = token_to_piece(ref, eos)
-        {:ok, %ExLLama.Model{
-          resource: ref,
-          name: path,
-          bos: String.to_charlist(bos_piece),
-          eos: String.to_charlist(eos_piece)
-        }}
-      error -> error
+
+        {:ok,
+         %ExLLama.Model{
+           resource: ref,
+           name: path,
+           bos: String.to_charlist(bos_piece),
+           eos: String.to_charlist(eos_piece)
+         }}
+
+      error ->
+        error
     end
   end
 
@@ -106,14 +131,30 @@ defmodule ExLLama.Nif do
     o = if is_struct(options), do: Map.from_struct(options), else: Map.new(options || [])
     # Only forward explicitly-set keys so llama.cpp defaults are preserved.
     forward_keys = [
-      :n_ctx, :n_batch, :n_ubatch, :n_seq_max,
-      :n_threads, :n_threads_batch,
-      :rope_scaling_type, :rope_freq_base, :rope_freq_scale,
-      :yarn_ext_factor, :yarn_attn_factor, :yarn_beta_fast, :yarn_beta_slow, :yarn_orig_ctx,
-      :type_k, :type_v,
-      :flash_attn_type, :pooling_type, :attention_type,
-      :op_offload, :kv_unified, :swa_full
+      :n_ctx,
+      :n_batch,
+      :n_ubatch,
+      :n_seq_max,
+      :n_threads,
+      :n_threads_batch,
+      :rope_scaling_type,
+      :rope_freq_base,
+      :rope_freq_scale,
+      :yarn_ext_factor,
+      :yarn_attn_factor,
+      :yarn_beta_fast,
+      :yarn_beta_slow,
+      :yarn_orig_ctx,
+      :type_k,
+      :type_v,
+      :flash_attn_type,
+      :pooling_type,
+      :attention_type,
+      :op_offload,
+      :kv_unified,
+      :swa_full
     ]
+
     ctx_opts =
       forward_keys
       |> Enum.reduce(%{}, fn k, acc -> maybe_put(acc, k, o[k]) end)
@@ -127,21 +168,28 @@ defmodule ExLLama.Nif do
         # context ref so every completion/embedding call seeds its sampler
         # (same contract as Model.create_session/2).
         if o[:seed], do: Process.put({:ex_llama_seed, ctx_ref}, o[:seed])
-        {:ok, %ExLLama.Session{
-          resource: ctx_ref,
-          model_name: model.name,
-          seed: o[:seed] || 0xFFFFFFFF
-        }}
-      error -> error
+
+        {:ok,
+         %ExLLama.Session{
+           resource: ctx_ref,
+           model_name: model.name,
+           seed: o[:seed] || 0xFFFFFFFF
+         }}
+
+      error ->
+        error
     end
   end
 
   # ⟦𓌱𓊏𓊾𓆓⟧ __model_nif_detokenize__ :: auto-generated pointer for public function __model_nif_detokenize__
   def __model_nif_detokenize__(model, token), do: token_to_piece(model.resource, token)
+
   # ⟦𓋀𓀞𓉊𓃈⟧ __model_nif_token_to_byte_piece__ :: auto-generated pointer for public function __model_nif_token_to_byte_piece__
   def __model_nif_token_to_byte_piece__(model, token), do: token_to_piece(model.resource, token)
+
   # ⟦𓌜𓄅𓆚𓍳⟧ __model_nif_token_to_piece__ :: auto-generated pointer for public function __model_nif_token_to_piece__
   def __model_nif_token_to_piece__(model, token), do: token_to_piece(model.resource, token)
+
   # ⟦𓊖𓎱𓉃𓄷⟧ __model_nif_decode_tokens__ :: auto-generated pointer for public function __model_nif_decode_tokens__
   def __model_nif_decode_tokens__(model, tokens), do: detokenize(model.resource, tokens)
 
@@ -155,16 +203,22 @@ defmodule ExLLama.Nif do
 
   # ⟦𓃪𓐡𓀤𓊅⟧ __model_nif_bos__ :: auto-generated pointer for public function __model_nif_bos__
   def __model_nif_bos__(model), do: vocab_bos(model.resource)
+
   # ⟦𓂽𓎲𓄎𓁫⟧ __model_nif_eos__ :: auto-generated pointer for public function __model_nif_eos__
   def __model_nif_eos__(model), do: vocab_eos(model.resource)
+
   # ⟦𓀻𓉛𓏲𓋔⟧ __model_nif_nl__ :: auto-generated pointer for public function __model_nif_nl__
   def __model_nif_nl__(model), do: vocab_nl(model.resource)
+
   # ⟦𓎸𓂻𓋠𓀞⟧ __model_nif_infill_prefix__ :: auto-generated pointer for public function __model_nif_infill_prefix__
   def __model_nif_infill_prefix__(model), do: vocab_fim_pre(model.resource)
+
   # ⟦𓄒𓐭𓊠𓍸⟧ __model_nif_infill_middle__ :: auto-generated pointer for public function __model_nif_infill_middle__
   def __model_nif_infill_middle__(model), do: vocab_fim_mid(model.resource)
+
   # ⟦𓂚𓋢𓋊𓐤⟧ __model_nif_infill_suffix__ :: auto-generated pointer for public function __model_nif_infill_suffix__
   def __model_nif_infill_suffix__(model), do: vocab_fim_suf(model.resource)
+
   # ⟦𓌣𓉕𓌝𓍣⟧ __model_nif_eot__ :: auto-generated pointer for public function __model_nif_eot__
   def __model_nif_eot__(model), do: vocab_eot(model.resource)
 
@@ -198,30 +252,31 @@ defmodule ExLLama.Nif do
 
   # ⟦𓆂𓉚𓎑𓍤⟧ __session_nif_default_session_options__ :: auto-generated pointer for public function __session_nif_default_session_options__
   def __session_nif_default_session_options__() do
-    {:ok, %ExLLama.SessionOptions{
-      seed: 0xFFFFFFFF,
-      n_ctx: 2048,
-      n_batch: 512,
-      n_threads: @default_threads,
-      n_threads_batch: @default_threads_batch,
-      rope_scaling_type: @default_rope_scaling_type,
-      rope_freq_base: 0.0,
-      rope_freq_scale: 0.0,
-      # nil = omit: llama.cpp's own defaults are -1.0 sentinels (resolve from
-      # model hparams). 0.0 here would mean "disabled", overriding the model.
-      yarn_ext_factor: nil,
-      yarn_attn_factor: nil,
-      yarn_beta_fast: nil,
-      yarn_beta_slow: nil,
-      yarn_orig_ctx: 0,
-      # ggml type 1 = GGML_TYPE_F16 (type 0/F32 is not a valid KV-cache type;
-      # see valid_kv_ggml_type in c_src/ex_llama_nif.cpp)
-      type_k: 1,
-      type_v: 1,
-      embedding: false,
-      offload_kqv: true,
-      pooling: false
-    }}
+    {:ok,
+     %ExLLama.SessionOptions{
+       seed: 0xFFFFFFFF,
+       n_ctx: 2048,
+       n_batch: 512,
+       n_threads: @default_threads,
+       n_threads_batch: @default_threads_batch,
+       rope_scaling_type: @default_rope_scaling_type,
+       rope_freq_base: 0.0,
+       rope_freq_scale: 0.0,
+       # nil = omit: llama.cpp's own defaults are -1.0 sentinels (resolve from
+       # model hparams). 0.0 here would mean "disabled", overriding the model.
+       yarn_ext_factor: nil,
+       yarn_attn_factor: nil,
+       yarn_beta_fast: nil,
+       yarn_beta_slow: nil,
+       yarn_orig_ctx: 0,
+       # ggml type 1 = GGML_TYPE_F16 (type 0/F32 is not a valid KV-cache type;
+       # see valid_kv_ggml_type in c_src/ex_llama_nif.cpp)
+       type_k: 1,
+       type_v: 1,
+       embedding: false,
+       offload_kqv: true,
+       pooling: false
+     }}
   end
 
   # ⟦𓋞𓅔𓂊𓇠⟧ __session_nif_advance_context__ :: auto-generated pointer for public function __session_nif_advance_context__
@@ -234,12 +289,15 @@ defmodule ExLLama.Nif do
   # ⟦𓐢𓀗𓄝𓇃⟧ __session_nif_advance_context_with_tokens__ :: auto-generated pointer for public function __session_nif_advance_context_with_tokens__
   def __session_nif_advance_context_with_tokens__(ctx_ref, tokens) when is_list(tokens) do
     model = Process.get({:ex_llama_model, ctx_ref})
+
     case detokenize(model.resource, tokens) do
       {:ok, text} ->
         existing = Process.get({:ex_llama_ctx, ctx_ref}, "")
         Process.put({:ex_llama_ctx, ctx_ref}, existing <> text)
         {:ok, length(tokens)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -252,11 +310,14 @@ defmodule ExLLama.Nif do
   # ⟦𓂈𓃄𓎣𓃸⟧ __session_nif_set_context_to_tokens__ :: auto-generated pointer for public function __session_nif_set_context_to_tokens__
   def __session_nif_set_context_to_tokens__(ctx_ref, tokens) when is_list(tokens) do
     model = Process.get({:ex_llama_model, ctx_ref})
+
     case detokenize(model.resource, tokens) do
       {:ok, text} ->
         Process.put({:ex_llama_ctx, ctx_ref}, text)
         {:ok, :ok}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -264,6 +325,7 @@ defmodule ExLLama.Nif do
   def __session_nif_context__(ctx_ref) do
     text = Process.get({:ex_llama_ctx, ctx_ref}, "")
     model = Process.get({:ex_llama_model, ctx_ref})
+
     if model do
       tokenize(model.resource, text, false)
     else
@@ -284,18 +346,24 @@ defmodule ExLLama.Nif do
   def __session_nif_truncate_context__(ctx_ref, n_tokens) do
     model = Process.get({:ex_llama_model, ctx_ref})
     text = Process.get({:ex_llama_ctx, ctx_ref}, "")
+
     if model do
       # Token-level truncation: tokenize, take first n, detokenize
       case tokenize(model.resource, text, false) do
         {:ok, tokens} ->
           truncated = Enum.take(tokens, n_tokens)
+
           case detokenize(model.resource, truncated) do
             {:ok, new_text} ->
               Process.put({:ex_llama_ctx, ctx_ref}, new_text)
               {:ok, :ok}
-            error -> error
+
+            error ->
+              error
           end
-        error -> error
+
+        error ->
+          error
       end
     else
       Process.put({:ex_llama_ctx, ctx_ref}, String.slice(text, 0, n_tokens))
@@ -337,7 +405,9 @@ defmodule ExLLama.Nif do
         {:ok, defaults} = __session_nif_default_session_options__()
         seed = Process.get({:ex_llama_seed, ctx_ref})
         {:ok, if(seed, do: %{defaults | seed: seed}, else: defaults)}
-      params -> {:ok, params}
+
+      params ->
+        {:ok, params}
     end
   end
 
@@ -355,12 +425,16 @@ defmodule ExLLama.Nif do
         if seed, do: Process.put({:ex_llama_seed, new_ref}, seed)
         Process.put({:ex_llama_ctx, new_ref}, context)
         if params, do: Process.put({:ex_llama_params, new_ref}, params)
-        {:ok, %ExLLama.Session{
-          resource: new_ref,
-          model_name: model.name,
-          seed: seed || 0xFFFFFFFF
-        }}
-      error -> error
+
+        {:ok,
+         %ExLLama.Session{
+           resource: new_ref,
+           model_name: model.name,
+           seed: seed || 0xFFFFFFFF
+         }}
+
+      error ->
+        error
     end
   end
 

@@ -75,7 +75,7 @@ $(LLAMA_LIB): $(LLAMA_DIR)/CMakeLists.txt
 	cmake --build $(LLAMA_BUILD) --config Release -j$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)
 
 # Build NIF shared object, linking llama.cpp statically
-$(NIF_SO): c_src/ex_llama_nif.cpp $(LLAMA_LIB)
+$(NIF_SO): c_src/ex_llama_nif.cpp c_src/jev_head.h $(LLAMA_LIB)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ c_src/ex_llama_nif.cpp $(LLAMA_LIBS) $(LINK_LIBS)
 
 # Test binary (standalone, no Erlang needed)
@@ -93,3 +93,10 @@ clean:
 	rm -rf $(LLAMA_BUILD)
 
 .PHONY: all clean test
+
+# Portable classifier-head unit test: no Erlang, CUDA or model download required.
+classifier-head-test:
+	$(CXX) -O2 -Wall -Wextra -std=c++17 -o /tmp/ex_llama_jev_head_test c_src/test_jev_head.cpp
+	/tmp/ex_llama_jev_head_test
+
+.PHONY: classifier-head-test
