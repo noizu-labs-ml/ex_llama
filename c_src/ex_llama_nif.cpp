@@ -1,0 +1,1063 @@
+#include <erl_nif.h>
+#include <llama.h>
+#include <ggml.h>
+
+#include <string>
+#include <vector>
+#include <cstring>
+#include <mutex>
+#include <thread>
+#include <cmath>
+#include <regex>
+#include <stdexcept>
+#include <memory>
+#include "jev_head.h"
+
+// ---------------------------------------------------------------------------
+// Resource types
+// ---------------------------------------------------------------------------
+static ErlNifResourceType *MODEL_RES_TYPE = nullptr;
+static ErlNifResourceType *CTX_RES_TYPE   = nullptr;
+static ErlNifResourceType *HEAD_RES_TYPE  = nullptr;
+
+struct HeadRes { ex_llama::JevHead head; };
+static void head_res_dtor(ErlNifEnv *, void *obj) {
+    static_cast<HeadRes *>(obj)->~HeadRes();
+}
+
+struct ModelRes {
+    llama_model *model;
+    std::mutex classifier_mu;
+};
+
+struct CtxRes {
+    llama_context *ctx;
+    llama_model   *model;   // non-owning, for vocab access
+    std::mutex     mu;
+};
+
+static void model_res_dtor(ErlNifEnv *, void *obj) {
+    auto *r = static_cast<ModelRes *>(obj);
+    if (r->model) llama_model_free(r->model);
+    r->~ModelRes();
+}
+
+static void ctx_res_dtor(ErlNifEnv *, void *obj) {
+    auto *r = static_cast<CtxRes *>(obj);
+    if (r->ctx) llama_free(r->ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM make_atom(ErlNifEnv *env, const char *name) {
+    ERL_NIF_TERM atom;
+    if (enif_make_existing_atom(env, name, &atom, ERL_NIF_LATIN1))
+        return atom;
+    return enif_make_atom(env, name);
+}
+
+static ERL_NIF_TERM make_ok(ErlNifEnv *env, ERL_NIF_TERM val) {
+    return enif_make_tuple2(env, make_atom(env, "ok"), val);
+}
+
+static ERL_NIF_TERM make_error(ErlNifEnv *env, const char *reason) {
+    return enif_make_tuple2(env, make_atom(env, "error"),
+                            enif_make_string(env, reason, ERL_NIF_LATIN1));
+}
+
+static ERL_NIF_TERM make_error_bin(ErlNifEnv *env, const std::string &reason) {
+    ERL_NIF_TERM bin;
+    unsigned char *buf = enif_make_new_binary(env, reason.size(), &bin);
+    memcpy(buf, reason.data(), reason.size());
+    return enif_make_tuple2(env, make_atom(env, "error"), bin);
+}
+
+static bool get_string(ErlNifEnv *env, ERL_NIF_TERM term, std::string &out) {
+    ErlNifBinary bin;
+    if (enif_inspect_binary(env, term, &bin)) {
+        out.assign(reinterpret_cast<const char *>(bin.data), bin.size);
+        return true;
+    }
+    if (enif_inspect_iolist_as_binary(env, term, &bin)) {
+        out.assign(reinterpret_cast<const char *>(bin.data), bin.size);
+        return true;
+    }
+    return false;
+}
+
+static bool get_uint(ErlNifEnv *env, ERL_NIF_TERM term, unsigned int &out) {
+    return enif_get_uint(env, term, &out);
+}
+
+static bool get_int(ErlNifEnv *env, ERL_NIF_TERM term, int &out) {
+    return enif_get_int(env, term, &out);
+}
+
+static bool get_bool(ErlNifEnv *env, ERL_NIF_TERM term, bool &out) {
+    char buf[8];
+    if (!enif_get_atom(env, term, buf, sizeof(buf), ERL_NIF_LATIN1))
+        return false;
+    if (strcmp(buf, "true") == 0) { out = true; return true; }
+    if (strcmp(buf, "false") == 0) { out = false; return true; }
+    return false;
+}
+
+static bool map_get_uint(ErlNifEnv *env, ERL_NIF_TERM map,
+                         const char *key, unsigned int &out) {
+    ERL_NIF_TERM val;
+    if (enif_get_map_value(env, map, make_atom(env, key), &val))
+        return get_uint(env, val, out);
+    return false;
+}
+
+static bool map_get_int(ErlNifEnv *env, ERL_NIF_TERM map,
+                        const char *key, int &out) {
+    ERL_NIF_TERM val;
+    if (enif_get_map_value(env, map, make_atom(env, key), &val))
+        return get_int(env, val, out);
+    return false;
+}
+
+static bool map_get_bool(ErlNifEnv *env, ERL_NIF_TERM map,
+                         const char *key, bool &out) {
+    ERL_NIF_TERM val;
+    if (enif_get_map_value(env, map, make_atom(env, key), &val))
+        return get_bool(env, val, out);
+    return false;
+}
+
+static bool map_get_double(ErlNifEnv *env, ERL_NIF_TERM map,
+                           const char *key, double &out) {
+    ERL_NIF_TERM val;
+    if (enif_get_map_value(env, map, make_atom(env, key), &val))
+        return enif_get_double(env, val, &out);
+    return false;
+}
+
+static bool map_get_string(ErlNifEnv *env, ERL_NIF_TERM map,
+                           const char *key, std::string &out) {
+    ERL_NIF_TERM val;
+    if (enif_get_map_value(env, map, make_atom(env, key), &val))
+        return get_string(env, val, out);
+    return false;
+}
+
+static ERL_NIF_TERM make_binary_string(ErlNifEnv *env, const std::string &s) {
+    ERL_NIF_TERM bin;
+    unsigned char *buf = enif_make_new_binary(env, s.size(), &bin);
+    memcpy(buf, s.data(), s.size());
+    return bin;
+}
+
+// Tokenize a string using vocab
+static std::vector<llama_token> tokenize(const llama_vocab *vocab,
+                                          const std::string &text,
+                                          bool add_special) {
+    int n = llama_tokenize(vocab, text.c_str(), text.size(), nullptr, 0,
+                           add_special, true);
+    if (n < 0) n = -n;
+    std::vector<llama_token> tokens(n);
+    int actual = llama_tokenize(vocab, text.c_str(), text.size(),
+                                tokens.data(), tokens.size(),
+                                add_special, true);
+    if (actual < 0) actual = -actual;
+    tokens.resize(actual);
+    return tokens;
+}
+
+// Detokenize a single token
+static std::string token_to_piece(const llama_vocab *vocab, llama_token tok) {
+    char buf[256];
+    int n = llama_token_to_piece(vocab, tok, buf, sizeof(buf), 0, true);
+    if (n < 0) {
+        std::vector<char> big(-n);
+        int n2 = llama_token_to_piece(vocab, tok, big.data(), big.size(), 0, true);
+        if (n2 < 0) return "";
+        return std::string(big.data(), n2);
+    }
+    return std::string(buf, n);
+}
+
+// Detokenize a token vector
+static std::string detokenize(const llama_vocab *vocab,
+                               const std::vector<llama_token> &tokens) {
+    std::string out;
+    for (auto t : tokens) out += token_to_piece(vocab, t);
+    return out;
+}
+
+// Range-checked enum/flag marshalling: a bad value from Elixir must produce
+// {:error, reason}, not be forwarded raw into llama_init_from_model.
+static bool in_range(int v, int lo, int hi) { return v >= lo && v <= hi; }
+
+static bool valid_kv_ggml_type(int t) {
+    switch (t) {
+        case GGML_TYPE_F16: case GGML_TYPE_BF16:
+        case GGML_TYPE_Q4_0: case GGML_TYPE_Q4_1:
+        case GGML_TYPE_Q5_0: case GGML_TYPE_Q5_1:
+        case GGML_TYPE_Q8_0:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Feed prompt tokens in n_batch-sized chunks. A single batch larger than
+// n_batch trips GGML_ASSERT(n_tokens_all <= cparams.n_batch) inside
+// llama_decode and aborts the VM. Returns false on decode failure.
+static bool decode_prompt_chunks(llama_context *ctx, std::vector<llama_token> &tokens, const char **err) {
+    const uint32_t n_batch = llama_n_batch(ctx);
+    for (size_t i = 0; i < tokens.size(); i += n_batch) {
+        int32_t n = (int32_t)std::min((size_t)n_batch, tokens.size() - i);
+        llama_batch batch = llama_batch_get_one(tokens.data() + i, n);
+        if (llama_decode(ctx, batch) != 0) {
+            if (err) *err = "failed to decode prompt";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// NIF: load_model(path, opts_map) -> {:ok, model_ref} | {:error, reason}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_load_model(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    std::string path;
+    if (!get_string(env, argv[0], path))
+        return make_error(env, "bad path argument");
+
+    llama_model_params params = llama_model_default_params();
+
+    if (argc > 1 && enif_is_map(env, argv[1])) {
+        unsigned int u;
+        bool b;
+        int i;
+        std::string s;
+        if (map_get_uint(env, argv[1], "n_gpu_layers", u))
+            params.n_gpu_layers = (int32_t)u;
+        if (map_get_uint(env, argv[1], "main_gpu", u))
+            params.main_gpu = (int32_t)u;
+        if (map_get_string(env, argv[1], "split_mode", s)) {
+            if      (s == "none")  params.split_mode = LLAMA_SPLIT_MODE_NONE;
+            else if (s == "layer") params.split_mode = LLAMA_SPLIT_MODE_LAYER;
+            else if (s == "row")   params.split_mode = LLAMA_SPLIT_MODE_ROW;
+            else if (s != "tensor")
+                return make_error_bin(env, "invalid split_mode: " + s + " (expected none|layer|row)");
+            else                   params.split_mode = LLAMA_SPLIT_MODE_TENSOR;
+        }
+        if (map_get_int(env, argv[1], "lazy_mode", i)) {
+            switch (i) {
+                case LLAMA_LAZY_MODE_OFF: case LLAMA_LAZY_MODE_AUTO: case LLAMA_LAZY_MODE_ON:
+                    params.lazy_mode = (llama_lazy_mode)i;
+                    break;
+                default:
+                    return make_error_bin(env, "invalid lazy_mode value: " + std::to_string(i));
+            }
+        }
+        if (map_get_bool(env, argv[1], "vocab_only", b))
+            params.vocab_only = b;
+        if (map_get_bool(env, argv[1], "check_tensors", b))
+            params.check_tensors = b;
+        if (map_get_bool(env, argv[1], "use_extra_bufts", b))
+            params.use_extra_bufts = b;
+        if (map_get_bool(env, argv[1], "no_host", b))
+            params.no_host = b;
+        if (map_get_bool(env, argv[1], "load_mtp", b))
+            params.load_mtp = b;
+        // llama.cpp >= v0.6.0 replaced use_mmap/use_mlock/use_direct_io with load_mode.
+        // llama_load_mode_from_str GGML_ABORTs on unknown input, so validate here.
+        if (map_get_string(env, argv[1], "load_mode", s)) {
+            if      (s == "auto")        params.load_mode = LLAMA_LOAD_MODE_AUTO;
+            else if (s == "none")        params.load_mode = LLAMA_LOAD_MODE_NONE;
+            else if (s == "mmap")        params.load_mode = LLAMA_LOAD_MODE_MMAP;
+            else if (s == "mlock")       params.load_mode = LLAMA_LOAD_MODE_MLOCK;
+            else if (s == "mmap+mlock" || s == "mmap_mlock")
+                                          params.load_mode = LLAMA_LOAD_MODE_MMAP_MLOCK;
+            else if (s == "dio" || s == "direct_io")
+                                          params.load_mode = LLAMA_LOAD_MODE_DIRECT_IO;
+            else
+                return make_error_bin(env, "invalid load_mode: " + s +
+                    " (expected auto|none|mmap|mlock|mmap+mlock|direct_io)");
+        } else if (map_get_int(env, argv[1], "load_mode", i)) {
+            switch (i) {
+                case LLAMA_LOAD_MODE_AUTO: case LLAMA_LOAD_MODE_NONE:
+                case LLAMA_LOAD_MODE_MMAP: case LLAMA_LOAD_MODE_MLOCK:
+                case LLAMA_LOAD_MODE_MMAP_MLOCK: case LLAMA_LOAD_MODE_DIRECT_IO:
+                    params.load_mode = (llama_load_mode)i;
+                    break;
+                default:
+                    return make_error_bin(env, "invalid load_mode value: " + std::to_string(i));
+            }
+        }
+    }
+
+    llama_model *model = nullptr;
+    try {
+        model = llama_model_load_from_file(path.c_str(), params);
+    } catch (const std::exception &e) {
+        return make_error_bin(env, std::string("model load exception: ") + e.what());
+    } catch (...) {
+        return make_error(env, "model load: unknown exception");
+    }
+
+    if (!model)
+        return make_error(env, "failed to load model");
+
+    auto *res = static_cast<ModelRes *>(
+        enif_alloc_resource(MODEL_RES_TYPE, sizeof(ModelRes)));
+    if (!res) { llama_model_free(model); return make_error(env, "model resource allocation failed"); }
+    new (res) ModelRes();
+    res->model = model;
+
+    ERL_NIF_TERM term = enif_make_resource(env, res);
+    enif_release_resource(res);
+    return make_ok(env, term);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: create_context(model_ref, opts_map) -> {:ok, ctx_ref} | {:error, ...}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_create_context(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    llama_context_params params = llama_context_default_params();
+
+    if (argc > 1 && enif_is_map(env, argv[1])) {
+        unsigned int u;
+        int i;
+        double d;
+        bool b;
+        if (map_get_uint(env, argv[1], "n_ctx", u))       params.n_ctx = u;
+        if (map_get_uint(env, argv[1], "n_batch", u))     params.n_batch = u;
+        if (map_get_uint(env, argv[1], "n_ubatch", u))    params.n_ubatch = u;
+        if (map_get_uint(env, argv[1], "n_seq_max", u))   params.n_seq_max = u;
+        if (map_get_int(env, argv[1], "n_threads", i))    params.n_threads = i;
+        if (map_get_int(env, argv[1], "n_threads_batch", i)) params.n_threads_batch = i;
+        if (map_get_int(env, argv[1], "rope_scaling_type", i)) {
+            if (!in_range(i, -1, (int)LLAMA_ROPE_SCALING_TYPE_MAX_VALUE))
+                return make_error(env, "rope_scaling_type out of range (-1..3)");
+            params.rope_scaling_type = (llama_rope_scaling_type)i;
+        }
+        if (map_get_double(env, argv[1], "rope_freq_base", d))  params.rope_freq_base = (float)d;
+        if (map_get_double(env, argv[1], "rope_freq_scale", d)) params.rope_freq_scale = (float)d;
+        if (map_get_double(env, argv[1], "yarn_ext_factor", d)) params.yarn_ext_factor = (float)d;
+        if (map_get_double(env, argv[1], "yarn_attn_factor", d)) params.yarn_attn_factor = (float)d;
+        if (map_get_double(env, argv[1], "yarn_beta_fast", d))   params.yarn_beta_fast = (float)d;
+        if (map_get_double(env, argv[1], "yarn_beta_slow", d))   params.yarn_beta_slow = (float)d;
+        if (map_get_uint(env, argv[1], "yarn_orig_ctx", u))      params.yarn_orig_ctx = u;
+        if (map_get_int(env, argv[1], "type_k", i)) {
+            if (!valid_kv_ggml_type(i)) return make_error(env, "type_k is not a supported KV-cache ggml type");
+            params.type_k = (ggml_type)i;
+        }
+        if (map_get_int(env, argv[1], "type_v", i)) {
+            if (!valid_kv_ggml_type(i)) return make_error(env, "type_v is not a supported KV-cache ggml type");
+            params.type_v = (ggml_type)i;
+        }
+        if (map_get_int(env, argv[1], "flash_attn_type", i)) {
+            if (!in_range(i, -1, 1)) return make_error(env, "flash_attn_type out of range (-1..1)");
+            params.flash_attn_type = (llama_flash_attn_type)i;
+        }
+        if (map_get_int(env, argv[1], "pooling_type", i)) {
+            if (!in_range(i, -1, (int)LLAMA_POOLING_TYPE_RANK))
+                return make_error(env, "pooling_type out of range (-1..4)");
+            params.pooling_type = (enum llama_pooling_type)i;
+        }
+        if (map_get_int(env, argv[1], "attention_type", i)) {
+            if (!in_range(i, -1, 1)) return make_error(env, "attention_type out of range (-1..1)");
+            params.attention_type = (llama_attention_type)i;
+        }
+        if (map_get_bool(env, argv[1], "embeddings", b))  params.embeddings = b;
+        if (map_get_bool(env, argv[1], "offload_kqv", b)) params.offload_kqv = b;
+        if (map_get_bool(env, argv[1], "op_offload", b))  params.op_offload = b;
+        if (map_get_bool(env, argv[1], "kv_unified", b))  params.kv_unified = b;
+        if (map_get_bool(env, argv[1], "swa_full", b))    params.swa_full = b;
+    }
+
+    llama_context *ctx = llama_init_from_model(mres->model, params);
+    if (!ctx)
+        return make_error(env, "failed to create context");
+
+    auto *cres = static_cast<CtxRes *>(
+        enif_alloc_resource(CTX_RES_TYPE, sizeof(CtxRes)));
+    new (cres) CtxRes();
+    cres->ctx   = ctx;
+    cres->model = mres->model;
+
+    ERL_NIF_TERM term = enif_make_resource(env, cres);
+    enif_release_resource(cres);
+    return make_ok(env, term);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: tokenize(model_ref, text, add_special) -> {:ok, [token_ids]}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_tokenize(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    std::string text;
+    if (!get_string(env, argv[1], text))
+        return make_error(env, "bad text argument");
+
+    bool add_special = true;
+    if (argc > 2) get_bool(env, argv[2], add_special);
+
+    const llama_vocab *vocab = llama_model_get_vocab(mres->model);
+    auto tokens = tokenize(vocab, text, add_special);
+
+    ERL_NIF_TERM list = enif_make_list(env, 0);
+    for (int i = (int)tokens.size() - 1; i >= 0; i--)
+        list = enif_make_list_cell(env, enif_make_int(env, tokens[i]), list);
+
+    return make_ok(env, list);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: detokenize(model_ref, [token_ids]) -> {:ok, binary}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_detokenize(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    unsigned int len;
+    if (!enif_get_list_length(env, argv[1], &len))
+        return make_error(env, "bad token list");
+
+    std::vector<llama_token> tokens(len);
+    ERL_NIF_TERM head, tail = argv[1];
+    for (unsigned int i = 0; i < len; i++) {
+        enif_get_list_cell(env, tail, &head, &tail);
+        int tok;
+        enif_get_int(env, head, &tok);
+        tokens[i] = tok;
+    }
+
+    const llama_vocab *vocab = llama_model_get_vocab(mres->model);
+    std::string text = detokenize(vocab, tokens);
+    return make_ok(env, make_binary_string(env, text));
+}
+
+// ---------------------------------------------------------------------------
+// NIF: token_to_piece(model_ref, token_id) -> {:ok, binary}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_token_to_piece(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    int tok;
+    if (!enif_get_int(env, argv[1], &tok))
+        return make_error(env, "bad token id");
+
+    const llama_vocab *vocab = llama_model_get_vocab(mres->model);
+    std::string piece = token_to_piece(vocab, tok);
+    return make_ok(env, make_binary_string(env, piece));
+}
+
+// ---------------------------------------------------------------------------
+// NIF: special tokens - bos, eos, eot, nl, fim_pre, fim_mid, fim_suf
+// ---------------------------------------------------------------------------
+#define VOCAB_TOKEN_NIF(name, fn) \
+static ERL_NIF_TERM \
+name(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) \
+{ \
+    ModelRes *mres; \
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres)) \
+        return make_error(env, "bad model reference"); \
+    const llama_vocab *vocab = llama_model_get_vocab(mres->model); \
+    return make_ok(env, enif_make_int(env, fn(vocab))); \
+}
+
+VOCAB_TOKEN_NIF(nif_vocab_bos,     llama_vocab_bos)
+VOCAB_TOKEN_NIF(nif_vocab_eos,     llama_vocab_eos)
+VOCAB_TOKEN_NIF(nif_vocab_eot,     llama_vocab_eot)
+VOCAB_TOKEN_NIF(nif_vocab_nl,      llama_vocab_nl)
+VOCAB_TOKEN_NIF(nif_vocab_fim_pre, llama_vocab_fim_pre)
+VOCAB_TOKEN_NIF(nif_vocab_fim_mid, llama_vocab_fim_mid)
+VOCAB_TOKEN_NIF(nif_vocab_fim_suf, llama_vocab_fim_suf)
+
+// ---------------------------------------------------------------------------
+// NIF: model_info(model_ref) -> {:ok, map}
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_model_info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    const llama_vocab *vocab = llama_model_get_vocab(mres->model);
+
+    ERL_NIF_TERM map = enif_make_new_map(env);
+    char desc[256];
+    llama_model_desc(mres->model, desc, sizeof(desc));
+    enif_make_map_put(env, map, make_atom(env, "desc"),
+                      make_binary_string(env, desc), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_vocab"),
+                      enif_make_int(env, llama_vocab_n_tokens(vocab)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_embd"),
+                      enif_make_int(env, llama_model_n_embd(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_embd_out"),
+                      enif_make_int(env, llama_model_n_embd_out(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_ctx_train"),
+                      enif_make_int(env, llama_model_n_ctx_train(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_layer"),
+                      enif_make_int(env, llama_model_n_layer(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "model_size"),
+                      enif_make_uint64(env, llama_model_size(mres->model)), &map);
+    enif_make_map_put(env, map, make_atom(env, "n_params"),
+                      enif_make_uint64(env, llama_model_n_params(mres->model)), &map);
+
+    return make_ok(env, map);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: completion(ctx_ref, prompt, opts_map) -> {:ok, map} | {:error, ...}
+//   opts: %{max_tokens, seed, temp, top_p, top_k, min_p, stop}
+//   stop is a regex string for early stopping
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_completion(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    CtxRes *cres;
+    if (!enif_get_resource(env, argv[0], CTX_RES_TYPE, (void **)&cres))
+        return make_error(env, "bad context reference");
+
+    std::string prompt;
+    if (!get_string(env, argv[1], prompt))
+        return make_error(env, "bad prompt argument");
+
+    // Defaults
+    int max_tokens = 512;
+    unsigned int seed = LLAMA_DEFAULT_SEED;
+    float temp = 0.8f;
+    float top_p = 0.95f;
+    int top_k = 40;
+    float min_p = 0.05f;
+    std::string stop_pattern;
+
+    if (argc > 2 && enif_is_map(env, argv[2])) {
+        int i; unsigned int u; double d;
+        if (map_get_int(env, argv[2], "max_tokens", i))  max_tokens = i;
+        if (map_get_uint(env, argv[2], "seed", u))       seed = u;
+        if (map_get_double(env, argv[2], "temp", d))     temp = (float)d;
+        if (map_get_double(env, argv[2], "top_p", d))    top_p = (float)d;
+        if (map_get_int(env, argv[2], "top_k", i))       top_k = i;
+        if (map_get_double(env, argv[2], "min_p", d))    min_p = (float)d;
+        map_get_string(env, argv[2], "stop", stop_pattern);
+    }
+
+    std::lock_guard<std::mutex> lock(cres->mu);
+
+    const llama_vocab *vocab = llama_model_get_vocab(cres->model);
+
+    auto tokens = tokenize(vocab, prompt, true);
+    if (tokens.empty())
+        return make_error(env, "tokenization produced no tokens");
+
+    uint32_t n_ctx = llama_n_ctx(cres->ctx);
+    if (tokens.size() + max_tokens > n_ctx)
+        return make_error(env, "prompt + max_tokens exceeds context size");
+
+    llama_memory_clear(llama_get_memory(cres->ctx), true);
+
+    const char *decode_err = nullptr;
+    if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err))
+        return make_error(env, decode_err);
+
+    auto sparams = llama_sampler_chain_default_params();
+    llama_sampler *sampler = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(top_k));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(top_p, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_min_p(min_p, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(temp));
+    llama_sampler_chain_add(sampler, llama_sampler_init_dist(seed));
+
+    // Compile stop regex if provided
+    std::regex stop_regex;
+    bool has_stop = !stop_pattern.empty();
+    if (has_stop) {
+        try {
+            stop_regex = std::regex(stop_pattern);
+        } catch (const std::regex_error &) {
+            llama_sampler_free(sampler);
+            return make_error(env, "invalid stop regex pattern");
+        }
+    }
+
+    std::string result;
+    int n_generated = 0;
+    bool stopped_by_regex = false;
+
+    for (int i = 0; i < max_tokens; i++) {
+        llama_token new_token = llama_sampler_sample(sampler, cres->ctx, -1);
+
+        if (llama_vocab_is_eog(vocab, new_token))
+            break;
+
+        result += token_to_piece(vocab, new_token);
+        n_generated++;
+
+        // Check stop pattern
+        if (has_stop) {
+            std::smatch match;
+            if (std::regex_search(result, match, stop_regex)) {
+                result = result.substr(0, match.position() + match.length());
+                stopped_by_regex = true;
+                break;
+            }
+        }
+
+        llama_batch next = llama_batch_get_one(&new_token, 1);
+        if (llama_decode(cres->ctx, next) != 0)
+            break;
+    }
+
+    llama_sampler_free(sampler);
+
+    ERL_NIF_TERM map = enif_make_new_map(env);
+    enif_make_map_put(env, map, make_atom(env, "content"),
+                      make_binary_string(env, result), &map);
+    enif_make_map_put(env, map, make_atom(env, "token_length"),
+                      enif_make_int(env, n_generated), &map);
+
+    return make_ok(env, map);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: streaming_completion(ctx_ref, prompt, pid, opts_map)
+//   Sends each token as binary to pid, then :fin
+//   On error sends "error: <detail>" string matching old Rust behavior
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_streaming_completion(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    CtxRes *cres;
+    if (!enif_get_resource(env, argv[0], CTX_RES_TYPE, (void **)&cres))
+        return make_error(env, "bad context reference");
+
+    std::string prompt;
+    if (!get_string(env, argv[1], prompt))
+        return make_error(env, "bad prompt argument");
+
+    ErlNifPid pid;
+    if (!enif_get_local_pid(env, argv[2], &pid))
+        return make_error(env, "bad pid argument");
+
+    int max_tokens = 512;
+    unsigned int seed = LLAMA_DEFAULT_SEED;
+    float temp = 0.8f;
+    float top_p = 0.95f;
+    int top_k = 40;
+    float min_p = 0.05f;
+
+    if (argc > 3 && enif_is_map(env, argv[3])) {
+        int i; unsigned int u; double d;
+        if (map_get_int(env, argv[3], "max_tokens", i))  max_tokens = i;
+        if (map_get_uint(env, argv[3], "seed", u))       seed = u;
+        if (map_get_double(env, argv[3], "temp", d))     temp = (float)d;
+        if (map_get_double(env, argv[3], "top_p", d))    top_p = (float)d;
+        if (map_get_int(env, argv[3], "top_k", i))       top_k = i;
+        if (map_get_double(env, argv[3], "min_p", d))    min_p = (float)d;
+    }
+
+    enif_keep_resource(cres);
+
+    std::thread([cres, prompt, pid, max_tokens, seed, temp, top_p, top_k, min_p]() {
+        std::lock_guard<std::mutex> lock(cres->mu);
+
+        ErlNifEnv *msg_env = enif_alloc_env();
+        const llama_vocab *vocab = llama_model_get_vocab(cres->model);
+
+        auto send_error = [&](const std::string &detail) {
+            enif_clear_env(msg_env);
+            std::string err_msg = "error: " + detail;
+            ERL_NIF_TERM bin;
+            unsigned char *buf = enif_make_new_binary(msg_env, err_msg.size(), &bin);
+            memcpy(buf, err_msg.data(), err_msg.size());
+            enif_send(nullptr, &pid, msg_env, bin);
+        };
+
+        auto tokens = tokenize(vocab, prompt, true);
+
+        llama_memory_clear(llama_get_memory(cres->ctx), true);
+        const char *decode_err = nullptr;
+
+        if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err)) {
+            send_error(decode_err);
+            enif_free_env(msg_env);
+            enif_release_resource(cres);
+            return;
+        }
+
+        auto sparams = llama_sampler_chain_default_params();
+        llama_sampler *sampler = llama_sampler_chain_init(sparams);
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(top_k));
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(top_p, 1));
+        llama_sampler_chain_add(sampler, llama_sampler_init_min_p(min_p, 1));
+        llama_sampler_chain_add(sampler, llama_sampler_init_temp(temp));
+        llama_sampler_chain_add(sampler, llama_sampler_init_dist(seed));
+
+        for (int i = 0; i < max_tokens; i++) {
+            llama_token new_token = llama_sampler_sample(sampler, cres->ctx, -1);
+
+            if (llama_vocab_is_eog(vocab, new_token))
+                break;
+
+            std::string piece = token_to_piece(vocab, new_token);
+
+            enif_clear_env(msg_env);
+            ERL_NIF_TERM bin;
+            unsigned char *buf = enif_make_new_binary(msg_env, piece.size(), &bin);
+            memcpy(buf, piece.data(), piece.size());
+            enif_send(nullptr, &pid, msg_env, bin);
+
+            llama_batch next = llama_batch_get_one(&new_token, 1);
+            if (llama_decode(cres->ctx, next) != 0) {
+                send_error("failed to decode token");
+                break;
+            }
+        }
+
+        llama_sampler_free(sampler);
+
+        enif_clear_env(msg_env);
+        enif_send(nullptr, &pid, msg_env, enif_make_atom(msg_env, "fin"));
+        enif_free_env(msg_env);
+        enif_release_resource(cres);
+    }).detach();
+
+    return make_ok(env, make_atom(env, "streaming"));
+}
+
+// ---------------------------------------------------------------------------
+// NIF: embeddings(ctx_ref, text) -> {:ok, [[float]]} | {:error, ...}
+//   Returns vec-of-vecs for API compatibility with old Rust NIF
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_embeddings(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    CtxRes *cres;
+    if (!enif_get_resource(env, argv[0], CTX_RES_TYPE, (void **)&cres))
+        return make_error(env, "bad context reference");
+
+    std::string text;
+    if (!get_string(env, argv[1], text))
+        return make_error(env, "bad text argument");
+
+    std::lock_guard<std::mutex> lock(cres->mu);
+
+    const llama_vocab *vocab = llama_model_get_vocab(cres->model);
+    auto tokens = tokenize(vocab, text, true);
+
+    llama_memory_clear(llama_get_memory(cres->ctx), true);
+    const char *decode_err = nullptr;
+    if (!decode_prompt_chunks(cres->ctx, tokens, &decode_err))
+        return make_error(env, decode_err);
+
+    float *embd = llama_get_embeddings(cres->ctx);
+    if (!embd)
+        return make_error(env, "embeddings not available (context not in embedding mode?)");
+
+    int n_embd = llama_model_n_embd(cres->model);
+
+    // Normalize
+    float norm = 0;
+    for (int i = 0; i < n_embd; i++) norm += embd[i] * embd[i];
+    norm = sqrtf(norm);
+
+    // Build inner list
+    ERL_NIF_TERM inner = enif_make_list(env, 0);
+    for (int i = n_embd - 1; i >= 0; i--) {
+        double val = (norm > 0) ? (double)(embd[i] / norm) : 0.0;
+        inner = enif_make_list_cell(env, enif_make_double(env, val), inner);
+    }
+
+    // Wrap in outer list for vec-of-vecs compatibility
+    ERL_NIF_TERM outer = enif_make_list1(env, inner);
+    return make_ok(env, outer);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: context_deep_copy(ctx_ref) -> {:ok, new_ctx_ref} | {:error, ...}
+//   Copies context state including KV cache
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_context_deep_copy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    CtxRes *src;
+    if (!enif_get_resource(env, argv[0], CTX_RES_TYPE, (void **)&src))
+        return make_error(env, "bad context reference");
+
+    std::lock_guard<std::mutex> lock(src->mu);
+
+    // Create new context from same model with same params
+    llama_context_params params = llama_context_default_params();
+    params.n_ctx = llama_n_ctx(src->ctx);
+    params.n_batch = llama_n_batch(src->ctx);
+
+    llama_context *new_ctx = llama_init_from_model(src->model, params);
+    if (!new_ctx)
+        return make_error(env, "failed to create context for deep copy");
+
+    // Copy state via serialization
+    size_t state_size = llama_state_get_size(src->ctx);
+    std::vector<uint8_t> state_buf(state_size);
+    size_t written = llama_state_get_data(src->ctx, state_buf.data(), state_buf.size());
+    if (written == 0) {
+        llama_free(new_ctx);
+        return make_error(env, "failed to serialize context state");
+    }
+
+    size_t loaded = llama_state_set_data(new_ctx, state_buf.data(), written);
+    if (loaded == 0) {
+        llama_free(new_ctx);
+        return make_error(env, "failed to restore context state");
+    }
+
+    auto *cres = static_cast<CtxRes *>(
+        enif_alloc_resource(CTX_RES_TYPE, sizeof(CtxRes)));
+    new (cres) CtxRes();
+    cres->ctx   = new_ctx;
+    cres->model = src->model;
+
+    ERL_NIF_TERM term = enif_make_resource(env, cres);
+    enif_release_resource(cres);
+    return make_ok(env, term);
+}
+
+// ---------------------------------------------------------------------------
+// NIF: chat_apply_template(model_ref, messages, add_generation_prompt)
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM
+nif_chat_apply_template(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ModelRes *mres;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&mres))
+        return make_error(env, "bad model reference");
+
+    unsigned int n_msgs;
+    if (!enif_get_list_length(env, argv[1], &n_msgs))
+        return make_error(env, "bad messages list");
+
+    bool add_ass = true;
+    if (argc > 2) get_bool(env, argv[2], add_ass);
+
+    std::vector<llama_chat_message> msgs(n_msgs);
+    std::vector<std::string> roles(n_msgs), contents(n_msgs);
+
+    ERL_NIF_TERM head, tail = argv[1];
+    for (unsigned int i = 0; i < n_msgs; i++) {
+        enif_get_list_cell(env, tail, &head, &tail);
+
+        ERL_NIF_TERM role_term, content_term;
+        if (!enif_get_map_value(env, head, make_atom(env, "role"), &role_term) ||
+            !enif_get_map_value(env, head, make_atom(env, "content"), &content_term)) {
+            return make_error(env, "messages must have :role and :content keys");
+        }
+
+        if (!get_string(env, role_term, roles[i]) ||
+            !get_string(env, content_term, contents[i]))
+            return make_error(env, "role and content must be strings");
+
+        msgs[i].role = roles[i].c_str();
+        msgs[i].content = contents[i].c_str();
+    }
+
+    const char *tmpl = llama_model_chat_template(mres->model, nullptr);
+
+    int32_t needed = llama_chat_apply_template(
+        tmpl, msgs.data(), msgs.size(), add_ass, nullptr, 0);
+    if (needed < 0)
+        return make_error(env, "failed to apply chat template");
+
+    std::vector<char> buf(needed + 1);
+    llama_chat_apply_template(tmpl, msgs.data(), msgs.size(), add_ass,
+                              buf.data(), buf.size());
+
+    std::string result(buf.data(), needed);
+    return make_ok(env, make_binary_string(env, result));
+}
+
+// ---------------------------------------------------------------------------
+// NIF table
+// ---------------------------------------------------------------------------
+static ERL_NIF_TERM nif_classifier_load_head(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    std::string path;
+    if (!get_string(env, argv[0], path)) return make_error(env, "bad head path");
+    try {
+        auto head = ex_llama::JevHead::load(path);
+        auto *res = static_cast<HeadRes *>(enif_alloc_resource(HEAD_RES_TYPE, sizeof(HeadRes)));
+        if (!res) return make_error(env, "head resource allocation failed");
+        new (res) HeadRes{std::move(head)};
+        ERL_NIF_TERM term = enif_make_resource(env, res);
+        enif_release_resource(res);
+        return make_ok(env, term);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
+static ERL_NIF_TERM nif_classifier_head_info(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    HeadRes *res;
+    if (!enif_get_resource(env, argv[0], HEAD_RES_TYPE, (void **)&res))
+        return make_error(env, "bad head reference");
+    ERL_NIF_TERM map = enif_make_new_map(env);
+    enif_make_map_put(env, map, make_atom(env, "hidden"), enif_make_uint(env, res->head.hidden), &map);
+    enif_make_map_put(env, map, make_atom(env, "classes"), enif_make_uint(env, res->head.classes), &map);
+    return make_ok(env, map);
+}
+
+static ERL_NIF_TERM nif_classifier_head_probabilities(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    HeadRes *res;
+    unsigned int length, count;
+    if (!enif_get_resource(env, argv[0], HEAD_RES_TYPE, (void **)&res))
+        return make_error(env, "bad head reference");
+    if (!enif_get_list_length(env, argv[1], &length) || length != res->head.hidden ||
+        !enif_get_uint(env, argv[2], &count)) return make_error(env, "invalid head inference arguments");
+    try {
+        std::vector<float> features(length);
+        ERL_NIF_TERM value, tail = argv[1];
+        for (unsigned int i = 0; i < length; ++i) {
+            double number; int integer;
+            if (!enif_get_list_cell(env, tail, &value, &tail)) return make_error(env, "invalid hidden state");
+            if (!enif_get_double(env, value, &number)) {
+                if (!enif_get_int(env, value, &integer)) return make_error(env, "invalid hidden state number");
+                number = integer;
+            }
+            features[i] = static_cast<float>(number);
+        }
+        auto probabilities = res->head.probabilities(features, count);
+        ERL_NIF_TERM result = enif_make_list(env, 0);
+        for (auto it = probabilities.rbegin(); it != probabilities.rend(); ++it)
+            result = enif_make_list_cell(env, enif_make_double(env, *it), result);
+        return make_ok(env, result);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
+// A private, call-local context avoids corrupting a caller's generation/KV state.
+// The argv model resource remains alive until this dirty NIF returns.
+static ERL_NIF_TERM nif_classifier_last_hidden(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]) {
+    ModelRes *res; std::string prompt;
+    if (!enif_get_resource(env, argv[0], MODEL_RES_TYPE, (void **)&res) ||
+        !get_string(env, argv[1], prompt) || !enif_is_map(env, argv[2]))
+        return make_error(env, "invalid classifier prompt arguments");
+    try {
+        std::lock_guard<std::mutex> lock(res->classifier_mu);
+        // Prompt already includes BOS and generation-prefix special tokens.
+        auto tokens = tokenize(llama_model_get_vocab(res->model), prompt, false);
+        if (tokens.empty()) return make_error(env, "empty classifier prompt");
+        llama_context_params params = llama_context_default_params();
+        params.embeddings = true;
+        params.pooling_type = LLAMA_POOLING_TYPE_NONE;
+        params.n_ctx = 4096; params.n_batch = 512; params.n_ubatch = 512;
+        params.n_threads = -1; params.n_threads_batch = -1;
+        const char *keys[] = {"n_ctx", "n_batch", "n_ubatch"};
+        uint32_t *values[] = {&params.n_ctx, &params.n_batch, &params.n_ubatch};
+        for (int i = 0; i < 3; ++i) {
+            ERL_NIF_TERM value; unsigned int number;
+            if (enif_get_map_value(env, argv[2], make_atom(env, keys[i]), &value)) {
+                if (!enif_get_uint(env, value, &number) || !number)
+                    return make_error(env, "classifier context fields must be positive integers");
+                *values[i] = number;
+            }
+        }
+        if (params.n_ctx < tokens.size() || params.n_ctx > 262144 || !params.n_batch ||
+            params.n_batch > params.n_ctx || !params.n_ubatch || params.n_ubatch > params.n_batch)
+            return make_error(env, "classifier context limits invalid or prompt exceeds n_ctx");
+        std::unique_ptr<llama_context, decltype(&llama_free)> context(
+            llama_init_from_model(res->model, params), llama_free);
+        if (!context) return make_error(env, "classifier context creation failed");
+        const char *error = nullptr;
+        if (!decode_prompt_chunks(context.get(), tokens, &error)) return make_error(env, error);
+        const float *features = llama_get_embeddings_ith(context.get(), -1);
+        if (!features) return make_error(env, "final-token hidden state unavailable");
+        const int hidden = llama_model_n_embd_out(res->model);
+        if (hidden <= 0 || hidden > 65536) return make_error(env, "invalid classifier output hidden dimension");
+        ERL_NIF_TERM result = enif_make_list(env, 0);
+        for (int i = hidden - 1; i >= 0; --i) {
+            if (!std::isfinite(features[i])) return make_error(env, "non-finite final-token hidden state");
+            result = enif_make_list_cell(env, enif_make_double(env, features[i]), result);
+        }
+        return make_ok(env, result);
+    } catch (const std::exception &error) { return make_error(env, error.what()); }
+}
+
+static ErlNifFunc nif_funcs[] = {
+    {"classifier_load_head", 1, nif_classifier_load_head, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"classifier_head_info", 1, nif_classifier_head_info, 0},
+    {"classifier_head_probabilities", 3, nif_classifier_head_probabilities, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"classifier_last_hidden", 3, nif_classifier_last_hidden, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    // model
+    {"load_model",            1, nif_load_model,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"load_model",            2, nif_load_model,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    // context
+    {"create_context",        1, nif_create_context,        0},
+    {"create_context",        2, nif_create_context,        0},
+    {"context_deep_copy",     1, nif_context_deep_copy,     ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    // tokenization
+    {"tokenize",              2, nif_tokenize,              0},
+    {"tokenize",              3, nif_tokenize,              0},
+    {"detokenize",            2, nif_detokenize,            0},
+    {"token_to_piece",        2, nif_token_to_piece,        0},
+    // vocab info
+    {"vocab_bos",             1, nif_vocab_bos,             0},
+    {"vocab_eos",             1, nif_vocab_eos,             0},
+    {"vocab_eot",             1, nif_vocab_eot,             0},
+    {"vocab_nl",              1, nif_vocab_nl,              0},
+    {"vocab_fim_pre",         1, nif_vocab_fim_pre,         0},
+    {"vocab_fim_mid",         1, nif_vocab_fim_mid,         0},
+    {"vocab_fim_suf",         1, nif_vocab_fim_suf,         0},
+    // model info
+    {"model_info",            1, nif_model_info,            0},
+    // inference
+    {"completion",            2, nif_completion,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"completion",            3, nif_completion,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"streaming_completion",  3, nif_streaming_completion,  0},
+    {"streaming_completion",  4, nif_streaming_completion,  0},
+    // embeddings
+    {"embeddings",            2, nif_embeddings,            ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    // chat template
+    {"chat_apply_template",   2, nif_chat_apply_template,   0},
+    {"chat_apply_template",   3, nif_chat_apply_template,   0},
+};
+
+static void quiet_log(enum ggml_log_level level, const char *text, void *) {
+    if (level >= GGML_LOG_LEVEL_ERROR) {
+        fprintf(stderr, "%s", text);
+    }
+}
+
+static int on_load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
+    MODEL_RES_TYPE = enif_open_resource_type(
+        env, nullptr, "ExLLamaModel", model_res_dtor,
+        ERL_NIF_RT_CREATE, nullptr);
+    CTX_RES_TYPE = enif_open_resource_type(
+        env, nullptr, "ExLLamaCtx", ctx_res_dtor,
+        ERL_NIF_RT_CREATE, nullptr);
+    HEAD_RES_TYPE = enif_open_resource_type(
+        env, nullptr, "ExLLamaDecisionHead", head_res_dtor,
+        ERL_NIF_RT_CREATE, nullptr);
+    if (!MODEL_RES_TYPE || !CTX_RES_TYPE || !HEAD_RES_TYPE) return -1;
+
+    llama_log_set(quiet_log, nullptr);
+
+    ggml_backend_load_all();
+
+    return 0;
+}
+
+ERL_NIF_INIT(Elixir.ExLLama.Nif, nif_funcs, on_load, NULL, NULL, NULL)

@@ -1,0 +1,102 @@
+defmodule ExLLama.ChatTemplate.Llama3Instruct do
+  @moduledoc """
+  based on: [https://github.com/chujiezheng/chat_templates/blob/main/chat_templates/llama-3-instruct.jinja]
+  ```jinja
+  {% if messages[0]['role'] == 'system' %}
+      {% set offset = 1 %}
+  {% else %}
+      {% set offset = 0 %}
+  {% endif %}
+
+  {{ bos_token }}
+  {% for message in messages %}
+      {% if (message['role'] == 'user') != (loop.index0 % 2 == offset) %}
+          {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+      {% endif %}
+
+      {{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' + message['content'] | trim + '<|eot_id|>' }}
+  {% endfor %}
+
+  {% if add_generation_prompt %}
+      {{ '<|start_header_id|>' + 'assistant' + '<|end_header_id|>\n\n' }}
+  {% endif %}
+  ```
+  """
+
+  # ⟦𓁟𓀴𓂝𓀭⟧ support_list :: auto-generated pointer for public function support_list
+  def support_list() do
+    [{~r"^.*llama.*3.*instruct.*$", 1}, {~r"^.*llama-3.*$", 1}]
+  end
+
+  defp format_message(message) do
+    "<|start_header_id|>#{message.role}<|end_header_id|>\n\n#{String.trim(message.content)}<|eot_id|>"
+  end
+
+  # ⟦𓃦𓈘𓇹𓍛⟧ extract_response :: auto-generated pointer for public function extract_response
+  def extract_response(responses, model, options) do
+    with {:ok, model_name} <- ExLLama.Model.__model_name__(model) do
+      choices = responses
+                |> Enum.with_index()
+                |> Enum.map(
+                     fn
+                       {{tokens, x}, index} ->
+                         content = x 
+                                   |> String.trim()
+                                   |> String.trim_trailing("<|eot_id|>")
+                         message = GenAI.Message.assistant(content)
+                         finish_reason = if (tokens < options[:max_tokens]), do: :stop, else: :max_tokens
+                         %GenAI.ChatCompletion.Choice{index: index, message: message, finish_reason: finish_reason}
+                     end)
+      completion_tokens = Enum.map(responses, fn {tokens,_} -> tokens end) |> Enum.max()
+      prompt_tokens = options[:prompt_tokens]
+      usage = %GenAI.ChatCompletion.Usage{prompt_tokens: prompt_tokens, total_tokens: completion_tokens + prompt_tokens, completion_tokens: completion_tokens}
+      completion = %GenAI.ChatCompletion{id: nil, model: model_name, seed: options[:seed], choices: choices, usage: usage}
+      {:ok, completion}
+    end
+  end
+
+  # ⟦𓏦𓈷𓂠𓋥⟧ to_context :: auto-generated pointer for public function to_context
+  def to_context(thread, model, options) do
+    with {:ok, bos_token} <- ExLLama.Model.__bos__(model) do
+      system_offset = if Enum.at(thread, 0)[:role] == :system, do: 1, else: 0
+      
+      lines = thread
+              |> Enum.with_index()
+              |> Enum.map(
+                   fn
+                     {msg = %{role: :system}, 0} ->
+                       format_message(msg)
+                       
+                     {msg = %{role: :system}, index} ->
+                       unless options[:strict] == false do
+                         raise ExLLama.ChatTemplate.Exception, message: "Only the first message may be from system", handler: __MODULE__, entry: msg, row: index
+                       end
+                       format_message(msg)
+
+                     {msg = %{role: role}, index} when role in [:user, :assistant] ->
+                       expected_user = rem(index - system_offset, 2) == 0
+                       is_user = role == :user
+                       
+                       if is_user != expected_user && options[:strict] != false do
+                         raise ExLLama.ChatTemplate.Exception, message: "Conversation roles must alternate user/assistant/user/assistant/...", handler: __MODULE__, entry: msg, row: index
+                       end
+                       format_message(msg)
+
+                     {msg, index} ->
+                       unless options[:strict] == false or options[:expanded_roles] do
+                         raise ExLLama.ChatTemplate.Exception, message: "Only user, assistant, and system roles are supported", handler: __MODULE__, entry: msg, row: index
+                       end
+                       format_message(msg)
+                   end
+                 ) |> Enum.join("")
+      
+      result = bos_token <> lines
+      
+      if options[:add_generation_prompt] && Enum.at(thread, -1)[:role] != :assistant do
+        {:ok, result <> "<|start_header_id|>assistant<|end_header_id|>\n\n"}
+      else
+        {:ok, result}
+      end
+    end
+  end
+end

@@ -85,3 +85,11 @@ As of this build only `<|role|>messsage</s>` format chat completion is supported
 
 ```
 
+# Native classifier support
+
+`ExLLama.load_classifier/3` loads a Jev-Omni GGUF backbone and its separate FP32
+decision head. `ExLLama.classify/3` implements the Core classifier contract for
+text choices, booleans and ordinal rubrics. See [native classifier setup and
+validation](docs/jev-classifier.md), including the explicit pending native/live
+validation prerequisites.
+

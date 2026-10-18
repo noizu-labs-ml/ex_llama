@@ -1,10 +1,24 @@
 defmodule ExLLama.SessionOptions do
+  @moduledoc """
+  Options used when creating an inference session (context).
+
+  See `ExLLama.ContextParams` for the meaning of the numeric enum fields
+  (`flash_attn_type`, `pooling_type`, `attention_type`, `type_k`, `type_v`, ...).
+  Unset fields fall back to llama.cpp defaults — only explicitly provided keys
+  are forwarded to the NIF.
+  """
+
   defstruct [
     :seed,
     :n_ctx,
     :n_batch,
+    :n_ubatch,
+    :n_seq_max,
     :n_threads,
     :n_threads_batch,
+    :flash_attn_type,
+    :pooling_type,
+    :attention_type,
     :rope_scaling_type,
     :rope_freq_base,
     :rope_freq_scale,
@@ -17,9 +31,13 @@ defmodule ExLLama.SessionOptions do
     :type_v,
     :embedding,
     :offload_kqv,
+    :op_offload,
+    :kv_unified,
+    :swa_full,
     :pooling,
   ]
 
+  # ⟦𓉱𓋯𓍻𓉐⟧ new :: auto-generated pointer for public function new
   def new() do
     {:ok, session_options} = ExLLama.Session.default_options()
     session_options
