@@ -7,8 +7,9 @@ Change Log
   decision heads, Core classifier mapping, reproducible reference parity and
   a CPU-portable logical-chunk regression that fixes the physical batch size;
   pins merged Core with required JSON/YAML runtime serializers;
-  [PR #11](https://github.com/noizu-labs-ml/ex_llama/pull/11) opened → main
-  (pending review; not merged).
+  [PR #11](https://github.com/noizu-labs-ml/ex_llama/pull/11) → main
+  (merged 2026-10-17); main → develop synchronized by
+  [PR #12](https://github.com/noizu-labs-ml/ex_llama/pull/12) (merged 2026-10-17).
 
 ## 0.4.0
 Refresh llama.cpp submodule pin from tag `b8322` to stable release

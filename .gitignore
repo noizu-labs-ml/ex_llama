@@ -56,3 +56,4 @@ ex_llama-*.tar
 
 # Python exporter cache
 /scripts/__pycache__/
+.tmp/
