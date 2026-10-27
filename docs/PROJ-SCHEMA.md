@@ -1,5 +1,7 @@
 # Project Schema
 
+<!-- 〚📁:6fe7ca54-e7d6-537a-b1a3-71eed7b794ac〛 docs/PROJ-SCHEMA.md :: Data schema reference: structs, formats, interfaces -->
+
 ## Scope
 
 ExLLama has **no relational persistence layer** — no Ecto schemas, no Liquibase
