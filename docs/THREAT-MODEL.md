@@ -1,5 +1,7 @@
 # Threat Model
 
+<!-- 〚📁:03716ae2-208d-5ffd-8bcf-af2d4bcb8077〛 docs/THREAT-MODEL.md :: Living threat model for the local-inference library -->
+
 ## Overview
 
 ExLLama is a library, not a service: it is linked into a host BEAM application

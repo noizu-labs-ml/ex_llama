@@ -1,5 +1,7 @@
 # Project Architecture
 
+<!-- 〚📁:ed106a24-b201-5a41-b822-b3cad648db80〛 docs/PROJ-ARCH.md :: Architecture overview: C-NIF layers and classifier -->
+
 ## Overview
 
 ExLLama is an Elixir NIF wrapper around llama.cpp for loading and running
