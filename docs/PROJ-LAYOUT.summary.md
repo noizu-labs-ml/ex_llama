@@ -2,19 +2,27 @@
 
 ```
 ex_llama/
-├── lib/                            # Elixir source
-│   ├── ex_llama/                   # Submodules
-│   │   ├── chat_template/          # 18 chat format implementations
-│   │   ├── chat_template.ex        # Behaviour definition
-│   │   ├── model.ex                # Model management
-│   │   ├── session.ex              # Session handling
-│   │   └── nif.ex                  # NIF bindings
-│   └── ex_llama.ex                 # Main API
-├── native/erlang_llama_cpp_nif/    # Rust NIF (Rustler + llama_cpp)
-│   └── src/                        # nifs/, refs/, structs/
-├── chat_templates/                 # Jinja2 templates + generation configs
-├── test/                           # Tests
-├── priv/                           # Models + compiled NIFs
+├── lib/
+│   ├── ex_llama.ex                 # Main public API
+│   └── ex_llama/
+│       ├── chat_template/          # 18 chat-format implementations
+│       ├── chat_template.ex        # Behaviour + pick_handler
+│       ├── classifier.ex           # GenAI classifier provider
+│       ├── classifier/decision.ex  # Pure distribution → answer mapping
+│       ├── model.ex / session.ex   # Model + session handles over NIF refs
+│       ├── nif.ex                  # C NIF bindings + bridge shims
+│       └── *_options.ex / context_params.ex  # Option structs
+├── c_src/                          # Native C/C++ NIF
+│   ├── ex_llama_nif.cpp            # C NIF (resources, ~30 NIF functions)
+│   ├── jev_head.h                  # JEVH0001 decision-head parser
+│   ├── test_*.cpp                  # Standalone native tests
+│   └── llama.cpp/                  # llama.cpp submodule (v0.6.0)
+├── scripts/                        # Classifier export/parity/validation tooling
+├── test/                           # ExUnit suite
+├── docs/                           # PROJ-*, THREAT-MODEL, arch/, layout/, jev-classifier.md
+├── priv/                           # Test models + built NIF (.so gitignored)
+├── .github/workflows/ci.yml        # CI: compile + test
+├── Makefile                        # llama.cpp cmake + NIF link
 ├── mix.exs                         # Project config
-└── CLAUDE.md                       # Claude Code instructions
+└── README.md                       # Start here
 ```

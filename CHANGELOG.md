@@ -1,6 +1,14 @@
 Change Log
 =====
 
+## 2026-10-26
+
+- 2026-10-26: docs: doc-sweep — refreshed PROJ-ARCH/PROJ-LAYOUT (and arch/,
+  layout/ detail) to the current C-NIF + Jev-Omni classifier reality (removed
+  stale Rust/Rustler and chat_templates/ descriptions); added PROJ-SCHEMA and
+  THREAT-MODEL (no persistence layer; local-inference trust boundaries).
+  (direct to develop)
+
 ## Unreleased
 
 - 2026-10-17: feat(classifier): native text Jev-Omni inference, validated FP32

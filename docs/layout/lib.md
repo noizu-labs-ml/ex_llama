@@ -22,13 +22,28 @@ lib/
 │   │   ├── solar_instruct.ex       #   Solar Instruct format
 │   │   ├── vicuna.ex               #   Vicuna format
 │   │   └── zephyr.ex               #   Zephyr format (default)
-│   ├── chat_template.ex            # ChatTemplate behaviour definition
-│   ├── context_params.ex           # Context parameter struct
-│   ├── embedding_options.ex        # Embedding options struct
-│   ├── model_options.ex            # Model loading options struct
-│   ├── model.ex                    # Model loading and management
-│   ├── nif.ex                      # NIF bindings (Rustler, stubs for all NIF functions)
+│   ├── chat_template.ex            # ChatTemplate behaviour + pick_handler/2
+│   ├── classifier.ex               # GenAI.Classifier.ProviderBehaviour impl (Jev-Omni)
+│   ├── classifier/
+│   │   └── decision.ex             # Pure distribution → GenAI Answer mapping
+│   ├── context_params.ex           # Context parameter struct (mirrors SessionOptions)
+│   ├── embedding_options.ex        # Embedding options struct (thread counts)
+│   ├── model_options.ex            # Model loading options struct (+ load_mode resolution)
+│   ├── model.ex                    # Model handle over the native model resource
+│   ├── nif.ex                      # C NIF bindings + bridge shims (old API → C NIFs)
 │   ├── session_options.ex          # Session options struct
-│   └── session.ex                  # Inference session handling
-└── ex_llama.ex                     # Main API — convenience functions, chat completion
+│   └── session.ex                  # Inference session over the native context resource
+└── ex_llama.ex                     # Main API — load_model, create_session, chat_completion, classify
 ```
+
+## Notes
+
+- `ExLLama.Nif` holds both the raw C NIF stubs (`:nif_not_loaded`) and the
+  `__model_nif_*__` / `__session_nif_*__` bridge functions that translate the
+  historical Rust-era API onto the current C NIF surface and wrap raw
+  references in `%ExLLama.Model{}` / `%ExLLama.Session{}`.
+- Context text, seed, model, and params are stashed in the calling process's
+  dictionary keyed by the native context ref (see `ExLLama.Session` and
+  `ExLLama.Nif`), so a session created in one process can be driven from another.
+- `ExLLama.ContextParams` duplicates the `SessionOptions` field set for callers
+  that prefer the context-terminology struct.
