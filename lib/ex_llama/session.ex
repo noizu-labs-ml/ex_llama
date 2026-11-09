@@ -1,4 +1,36 @@
 defmodule ExLLama.Session do
+  @moduledoc """
+  An inference session: one llama.cpp context bound to a loaded
+  `ExLLama.Model`, with its own KV cache, sampler seed and context window.
+
+  Create with `ExLLama.create_session/2` (options: `ExLLama.SessionOptions`,
+  which carries the 0.4.0 context fields — flash attention, pooling,
+  KV-cache quantization, etc.). The struct may be handed between processes
+  (e.g. into a GenServer or Task): the seed is re-stashed into the receiving
+  process on first use. A session is not concurrent-safe — serialize access
+  or give each consumer its own `deep_copy/1`.
+
+  ## Core flow
+
+      {:ok, session} = ExLLama.create_session(model, options)
+      :ok = ExLLama.Session.advance_context(session, "The capital of France is")
+      {:ok, %{content: text, token_length: n}} =
+        ExLLama.Session.completion(session, 16, "\\n")
+
+    * `advance_context/2` appends raw text to the context; `set_context/2`
+      replaces it. `advance_context_with_tokens/2` / `set_context_to_tokens/2`
+      take token ids instead of text.
+    * `completion/3` generates up to `max_tokens` tokens, stopping on `stop`.
+    * `start_completing_with/2` streams the completion to a process as
+      `{:ok, chunk}` messages terminated by `:fin` (default target: caller;
+      pass `pid:` in the options map to redirect).
+    * `deep_copy/1` clones the session (state included) for branching.
+    * `truncate_context/2` rolls the context back; `context/1`,
+      `context_size/1`, `params/1`, `model/1` inspect it.
+
+  `default_options/0` returns the NIF-side defaults (`{:ok, opts}`) — no
+  explicit thread counts; llama.cpp picks per-host values.
+  """
   defstruct [
     seed: nil,
     model_name: nil,

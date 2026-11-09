@@ -1,4 +1,29 @@
 defmodule ExLLama.Model do
+  @moduledoc """
+  A loaded GGUF model handle wrapping a llama.cpp model resource (C NIF,
+  bundled llama.cpp v0.6.0).
+
+  Load with `ExLLama.load_model/2` or `load_from_file/2` — loading options
+  (`load_mode`, `lazy_mode`, `split_mode`, `n_gpu_layers`, ...) are an
+  `ExLLama.ModelOptions` struct; fields left `nil` preserve upstream defaults.
+
+  ## What a model can do
+
+    * `create_session/2` — attach an inference context and get an
+      `ExLLama.Session` (options: `ExLLama.SessionOptions`).
+    * `embeddings/3` — compute embedding vectors for a list of inputs using an
+      embeddings-enabled context (embedding-capable GGUFs; options struct
+      `ExLLama.EmbeddingOptions`). `embed_len/1` reports the vector dimension.
+    * Tokenization round-trips: `token_to_piece/2`, `decode_tokens/2`,
+      `detokenize/2`.
+    * Vocabulary introspection: `bos/1`, `eos/1`, `nl/1`, `eot/1`, infill
+      tokens (`infill_prefix/1`, `infill_middle/1`, `infill_suffix/1`),
+      `vocabulary_size/1`, `train_len/1`. Structural metadata (incl. `:desc`
+      since 0.4.0) via `ExLLama.Nif.model_info/1`.
+
+  The struct is an immutable handle and may be shared across processes; each
+  session owns its own context/KV cache.
+  """
   defstruct [
     resource: nil,
     eos: nil,

@@ -1,6 +1,13 @@
 Change Log
 =====
 
+## 2026-11-10
+
+- 2026-11-10: docs: @moduledoc for the public API modules (ExLLama facade, Model,
+  Session, ChatTemplate, EmbeddingOptions) — accurate to the 0.4.0 surface
+  (load_mode replacing deprecated use_mmap/use_mlock, lazy/split modes,
+  streaming message protocol, embeddings). Docs-only code change (feature PR).
+
 ## 2026-10-26
 
 - 2026-10-26: docs: doc-sweep — refreshed PROJ-ARCH/PROJ-LAYOUT (and arch/,
