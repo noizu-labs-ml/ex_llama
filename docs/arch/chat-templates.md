@@ -50,4 +50,7 @@ Selection logic in `pick_handler/2`: uses `meta[:template]` if provided, otherwi
 
 ## Companion Resources
 
-The `chat_templates/` directory at project root contains reference Jinja2 templates (`.jinja`) and generation configs (`.json`) for each format, useful for validation and cross-referencing with HuggingFace model cards.
+There is no `chat_templates/` reference directory in the current tree (an earlier
+revision shipped Jinja2 `.jinja` templates and `.json` generation configs there;
+it is now empty and untracked). Formats live only as the Elixir modules listed
+above. Cross-reference HuggingFace model cards when adapting a new format.

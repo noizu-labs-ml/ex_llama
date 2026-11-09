@@ -1,6 +1,8 @@
 ExLLama: LlammaCpp.rs NIF wrapper for Elixir/Erlang.
 =======
 
+<!-- 〚📁:4f8efb43-74a1-50c0-89b4-26a47cf95dd8〛 README.md :: ExLLama project overview and quick-start -->
+
 This is an Alpha Library for loading and interacting with models via the llama_cpp rust client exposed as nif extensions. 
 Inspired By [llama_cpp_ex](https://github.com/jeregrine/llama_cpp_ex)
 

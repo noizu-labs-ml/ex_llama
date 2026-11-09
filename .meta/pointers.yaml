@@ -1,0 +1,74 @@
+---
+pointers:
+  03716ae2-208d-5ffd-8bcf-af2d4bcb8077:
+    created_at: 2026-10-27T02:07:13.940344Z
+    description: Living threat model for the local-inference library
+    file_path: docs/THREAT-MODEL.md
+    function: docs/THREAT-MODEL.md
+    kind: file
+    line: 3
+    locations:
+      - file_path: docs/THREAT-MODEL.md
+        line: 3
+    token: 𓉙𔍤𔅉𓶗
+    updated_at: 2026-10-27T02:07:13.940344Z
+  4f8efb43-74a1-50c0-89b4-26a47cf95dd8:
+    created_at: 2026-10-27T02:07:13.940374Z
+    description: ExLLama project overview and quick-start
+    file_path: README.md
+    function: README.md
+    kind: file
+    line: 4
+    locations:
+      - file_path: README.md
+        line: 4
+    token: 𔄫𔀯𓽁𓍈
+    updated_at: 2026-10-27T02:07:13.940374Z
+  6fe7ca54-e7d6-537a-b1a3-71eed7b794ac:
+    created_at: 2026-10-27T02:07:13.940366Z
+    description: 'Data schema reference: structs, formats, interfaces'
+    file_path: docs/PROJ-SCHEMA.md
+    function: docs/PROJ-SCHEMA.md
+    kind: file
+    line: 3
+    locations:
+      - file_path: docs/PROJ-SCHEMA.md
+        line: 3
+    token: 𓻉𓗢𓿸𓴼
+    updated_at: 2026-10-27T02:07:13.940366Z
+  af67a3ff-66e3-5cce-8861-ed959e16f39e:
+    created_at: 2026-10-27T02:07:13.940381Z
+    description: Mix project config, deps and native build settings
+    file_path: mix.exs
+    function: mix.exs
+    kind: file
+    line: 1
+    locations:
+      - file_path: mix.exs
+        line: 1
+    token: 𔖽𓻴𓐀𔆮
+    updated_at: 2026-10-27T02:07:13.940381Z
+  ebd58437-a823-594a-8fb5-9694f9b8b356:
+    created_at: 2026-10-27T02:07:13.940362Z
+    description: Native Jev-Omni classifier setup and validation
+    file_path: docs/jev-classifier.md
+    function: docs/jev-classifier.md
+    kind: file
+    line: 3
+    locations:
+      - file_path: docs/jev-classifier.md
+        line: 3
+    token: 𓌨𓽩𓲠𓭦
+    updated_at: 2026-10-27T02:07:13.940362Z
+  ed106a24-b201-5a41-b822-b3cad648db80:
+    created_at: 2026-10-27T02:07:13.940378Z
+    description: 'Architecture overview: C-NIF layers and classifier'
+    file_path: docs/PROJ-ARCH.md
+    function: docs/PROJ-ARCH.md
+    kind: file
+    line: 3
+    locations:
+      - file_path: docs/PROJ-ARCH.md
+        line: 3
+    token: 𔆯𓕼𓢱𓋰
+    updated_at: 2026-10-27T02:07:13.940378Z

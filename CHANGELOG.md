@@ -1,6 +1,18 @@
 Change Log
 =====
 
+## 2026-10-26
+
+- 2026-10-26: docs: doc-sweep — refreshed PROJ-ARCH/PROJ-LAYOUT (and arch/,
+  layout/ detail) to the current C-NIF + Jev-Omni classifier reality (removed
+  stale Rust/Rustler and chat_templates/ descriptions); added PROJ-SCHEMA and
+  THREAT-MODEL (no persistence layer; local-inference trust boundaries).
+  (direct to develop)
+- 2026-10-26: docs: seed doc-pointers — bounded starter set (6 file-level 📁
+  pointers) with \`.meta/pointers.yaml\`, on README, mix.exs, PROJ-ARCH,
+  PROJ-SCHEMA, THREAT-MODEL and jev-classifier.md;
+  [PR #16](https://github.com/noizu-labs-ml/ex_llama/pull/16) → develop.
+
 ## Unreleased
 
 - 2026-10-17: feat(classifier): native text Jev-Omni inference, validated FP32

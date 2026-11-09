@@ -1,3 +1,4 @@
+# 〚📁:af67a3ff-66e3-5cce-8861-ed959e16f39e〛 mix.exs :: Mix project config, deps and native build settings
 defmodule ExLLama.MixProject do
   use Mix.Project
 

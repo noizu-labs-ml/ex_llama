@@ -1,5 +1,7 @@
 # Native Jev classifier
 
+<!-- 〚📁:ebd58437-a823-594a-8fb5-9694f9b8b356〛 docs/jev-classifier.md :: Native Jev-Omni classifier setup and validation -->
+
 ExLLama's classifier uses its existing llama.cpp C++ backend. It performs text
 inference with Jev-Omni's final-token hidden state and separate FP32 decision
 head. It does not sample generated tokens. The classifier preserves ordered
