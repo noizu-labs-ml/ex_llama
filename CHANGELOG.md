@@ -53,6 +53,22 @@ Build: `LLAMA_BUILD_COMMON/TOOLS/APP` now pinned OFF (v0.6.0 defaults them
 ON for standalone builds and the unified `llama` app fails without the
 server lib). Hygiene: built `priv/ex_llama_nif.so` untracked and gitignored.
 
+Stabilization fixes (2026-10-08), folded into the published 0.4.0:
+
+- [#7](https://github.com/noizu-labs-ml/ex_llama/pull/7) — omit explicit thread
+  counts from default session options: defaults no longer pin
+  `n_threads`/`n_threads_batch`, letting llama.cpp pick per-host thread counts
+  (behavior change; commit 38bc884).
+- [#8](https://github.com/noizu-labs-ml/ex_llama/pull/8) — kitchen-sink
+  permutation suite for session option defaults (test-only; commit cb5d716).
+- NIF build/decode fixes re-applying the 0.2.2/0.2.3-era fixes the v0.6.0
+  refresh had regressed: build llama.cpp static libs with `-fPIC` (1be25fc),
+  link `libgomp` on Linux (ad64002), default KV-cache `type_k`/`type_v` to F16
+  (65398f2), decode prompts in `n_batch`-sized chunks (b5c7515).
+- Dependency: `genai_core` moved back from the pinned development git ref
+  (required by the classifier work) to hex `~> 0.4.0` for the published
+  release (commit 6318420, 2026-10-18).
+
 ## 0.3.0
 - Merge the `llama.cpp` release line (0.2.x source of truth) into `develop`.
 - Pin `genai_core` to `~> 0.3.5` (from `~> 0.3`).
