@@ -1,4 +1,30 @@
 defmodule ExLLama.ChatTemplate do
+  @moduledoc """
+  Chat template behaviour and dispatcher behind `ExLLama.chat_completion/3`.
+
+  A template renders a message thread (list of `%{role: _, content: _}` maps)
+  into model-ready prompt text and extracts a structured completion from raw
+  generation results.
+
+  ## Behaviour callbacks
+
+    * `support_list/0` — `{:ok, map_set}` of model names the template matches.
+    * `to_context/3` — `{:ok, prompt}` for a thread (bos/eos-aware).
+    * `extract_response/3` — `{:ok, %GenAI.ChatCompletion{}}` from
+      `{token_count, text}` generation pairs.
+
+  Handler selection (`pick_handler/2`): an explicit `template:` option module
+  wins; otherwise `ExLLama.ChatTemplate.Zephyr` is used.
+
+  18 built-in templates ship under `ExLLama.ChatTemplate.*` — Alpaca,
+  AmberChat, ChatML, ChatQA, FalconInstruct, GemmaInstruct, GraniteInstruct,
+  LLama2Chat, Llama3Instruct, MistralInstruct, OpenChat, Phi3, Phi3Small,
+  QwenInstruct, Saiga, SolarInstruct, Vicuna, Zephyr. Implement the behaviour
+  in your own module and pass it via `template:` to plug in custom formats.
+
+  `ExLLama.ChatTemplate.Exception` is raised when template rendering fails;
+  it carries the handler, entry and failing row for diagnosis.
+  """
   @type thread :: [map]
   @type model :: ExLLama.Model.t
   @type meta :: Keyword.t | nil
