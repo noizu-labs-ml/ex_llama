@@ -1,3 +1,4 @@
+# 〚📁:af67a3ff-66e3-5cce-8861-ed959e16f39e〛 mix.exs :: Mix project config, deps and native build settings
 defmodule ExLLama.MixProject do
   use Mix.Project
 
@@ -82,10 +83,7 @@ defmodule ExLLama.MixProject do
   defp genai_core_dep do
     case System.get_env("GENAI_CORE_PATH") do
       nil ->
-        {:genai_core,
-         git: "https://github.com/noizu-labs-ml/genai-core.git",
-         ref: "a98208599ab003f6ef1cc8ffdb01e91d01d5331b"}
-
+        {:genai_core, "~> 0.4.0"}
       path ->
         {:genai_core, path: path, override: true}
     end

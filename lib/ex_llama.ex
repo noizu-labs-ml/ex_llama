@@ -1,4 +1,28 @@
 defmodule ExLLama do
+  @moduledoc """
+  Top-level facade for ExLLama: model loading, session creation, completions,
+  and the native Jev classifier entry points.
+
+  ## Main entry points
+
+    * `load_model/2` — load a GGUF model file (delegates to
+      `ExLLama.Model.load_from_file/2`; loading options are an
+      `ExLLama.ModelOptions`).
+    * `create_session/2` — create an inference session from a loaded model.
+    * `chat_completion/3` — render a message thread through a chat template
+      (see `ExLLama.ChatTemplate`), generate, and return
+      `{:ok, %GenAI.ChatCompletion{}}` with per-choice messages and usage.
+      Options: `:template` (handler module), `:choices`, `:max_tokens`,
+      `:seed`, `:session_options`, `:add_generation_prompt`.
+    * `advance_context/2` + `completion/3` — raw, template-free session
+      completion (you own the prompt format).
+    * `load_classifier/3` / `classify/3` — native Jev-Omni classifier support
+      (see `docs/jev-classifier.md`).
+
+  Streaming generation is available on sessions via
+  `ExLLama.Session.start_completing_with/2`, which delivers `{:ok, chunk}`
+  messages terminated by `:fin` to the target process.
+  """
   @doc "Load a GGUF Jev backbone and its exported FP32 decision head."
   defdelegate load_classifier(model_path, head_path, options \\ []),
     to: ExLLama.Classifier,

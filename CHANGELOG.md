@@ -1,6 +1,25 @@
 Change Log
 =====
 
+## 2026-11-10
+
+- 2026-11-10: docs: @moduledoc for the public API modules (ExLLama facade, Model,
+  Session, ChatTemplate, EmbeddingOptions) — accurate to the 0.4.0 surface
+  (load_mode replacing deprecated use_mmap/use_mlock, lazy/split modes,
+  streaming message protocol, embeddings). Docs-only code change (feature PR).
+
+## 2026-10-26
+
+- 2026-10-26: docs: doc-sweep — refreshed PROJ-ARCH/PROJ-LAYOUT (and arch/,
+  layout/ detail) to the current C-NIF + Jev-Omni classifier reality (removed
+  stale Rust/Rustler and chat_templates/ descriptions); added PROJ-SCHEMA and
+  THREAT-MODEL (no persistence layer; local-inference trust boundaries).
+  (direct to develop)
+- 2026-10-26: docs: seed doc-pointers — bounded starter set (6 file-level 📁
+  pointers) with \`.meta/pointers.yaml\`, on README, mix.exs, PROJ-ARCH,
+  PROJ-SCHEMA, THREAT-MODEL and jev-classifier.md;
+  [PR #16](https://github.com/noizu-labs-ml/ex_llama/pull/16) → develop.
+
 ## Unreleased
 
 - 2026-10-17: feat(classifier): native text Jev-Omni inference, validated FP32
@@ -40,6 +59,22 @@ Eagle 3, Clef, ...) and Q1_0/Q2_0 quant formats load with no API change.
 Build: `LLAMA_BUILD_COMMON/TOOLS/APP` now pinned OFF (v0.6.0 defaults them
 ON for standalone builds and the unified `llama` app fails without the
 server lib). Hygiene: built `priv/ex_llama_nif.so` untracked and gitignored.
+
+Stabilization fixes (2026-10-08), folded into the published 0.4.0:
+
+- [#7](https://github.com/noizu-labs-ml/ex_llama/pull/7) — omit explicit thread
+  counts from default session options: defaults no longer pin
+  `n_threads`/`n_threads_batch`, letting llama.cpp pick per-host thread counts
+  (behavior change; commit 38bc884).
+- [#8](https://github.com/noizu-labs-ml/ex_llama/pull/8) — kitchen-sink
+  permutation suite for session option defaults (test-only; commit cb5d716).
+- NIF build/decode fixes re-applying the 0.2.2/0.2.3-era fixes the v0.6.0
+  refresh had regressed: build llama.cpp static libs with `-fPIC` (1be25fc),
+  link `libgomp` on Linux (ad64002), default KV-cache `type_k`/`type_v` to F16
+  (65398f2), decode prompts in `n_batch`-sized chunks (b5c7515).
+- Dependency: `genai_core` moved back from the pinned development git ref
+  (required by the classifier work) to hex `~> 0.4.0` for the published
+  release (commit 6318420, 2026-10-18).
 
 ## 0.3.0
 - Merge the `llama.cpp` release line (0.2.x source of truth) into `develop`.
