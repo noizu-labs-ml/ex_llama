@@ -8,7 +8,7 @@ defmodule ExLLama.MixProject do
       name: "LLama CPP Nif Wrapper",
       description: description(),
       package: package(),
-      version: "0.4.0",
+      version: "0.4.1",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       # Worktrees share canonical caches. Resolve their links before Mix computes
