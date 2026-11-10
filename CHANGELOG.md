@@ -3,10 +3,18 @@ Change Log
 
 ## 2026-11-10
 
+- 2026-11-10: chore: genai_core lock pickup 0.4.0 → 0.4.1 — security-driver
+  patch release (constraint `~> 0.4.0` unchanged, transitive pins untouched,
+  hex.audit clean; version 0.4.1);
+  [PR #23](https://github.com/noizu-labs-ml/ex_llama/pull/23) → develop → stage (#24).
 - 2026-11-10: docs: @moduledoc for the public API modules (ExLLama facade, Model,
   Session, ChatTemplate, EmbeddingOptions) — accurate to the 0.4.0 surface
   (load_mode replacing deprecated use_mmap/use_mlock, lazy/split modes,
   streaming message protocol, embeddings). Docs-only code change (feature PR).
+- 2026-11-10: chore: back-merge `main` into `develop` — post-0.4.0 release debt
+  cleared; branch symmetry restored (develop now contains all main content;
+  regular merge, no squash, no version bump, mix.lock untouched);
+  [PR #22](https://github.com/noizu-labs-ml/ex_llama/pull/22) → develop.
 
 ## 2026-10-26
 
