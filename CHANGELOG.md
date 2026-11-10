@@ -7,6 +7,10 @@ Change Log
   Session, ChatTemplate, EmbeddingOptions) — accurate to the 0.4.0 surface
   (load_mode replacing deprecated use_mmap/use_mlock, lazy/split modes,
   streaming message protocol, embeddings). Docs-only code change (feature PR).
+- 2026-11-10: chore: back-merge `main` into `develop` — post-0.4.0 release debt
+  cleared; branch symmetry restored (develop now contains all main content;
+  regular merge, no squash, no version bump, mix.lock untouched);
+  [PR #22](https://github.com/noizu-labs-ml/ex_llama/pull/22) → develop.
 
 ## 2026-10-26
 
